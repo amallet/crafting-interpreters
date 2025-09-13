@@ -14,7 +14,7 @@ type GLox struct {
 }
 
 func main() {
-	/*
+	
 	lox := GLox {}
 	if len(os.Args) > 2 {
 		fmt.Println("Usage: glox [script]")
@@ -24,7 +24,7 @@ func main() {
 	} else {
 		lox.runPrompt()
 	}
-		*/
+	/*
 	expression := &Binary { 
 		&Unary { Token { MINUS, "-", nil, 1}, 
 				&Literal {123} },
@@ -54,6 +54,7 @@ func main() {
 	
 	rpn_printer := rpnPrinter{}
 	fmt.Printf("%s \n", rpn_printer.print(expression))
+	*/
 }
 
 func (l GLox) runFile(file string) {
