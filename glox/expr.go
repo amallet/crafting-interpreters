@@ -2,15 +2,15 @@ package main
 
 // Expr represents an expression in the Lox language
 type Expr interface {
-	Accept(visitor ExprVisitor) any
+	Accept(visitor ExprVisitor) (any, error)
 }
 
 // ExprVisitor defines the visitor interface for expressions
 type ExprVisitor interface {
-	VisitBinaryExpr(expr *Binary) any
-	VisitGroupingExpr(expr *Grouping) any
-	VisitLiteralExpr(expr *Literal) any
-	VisitUnaryExpr(expr *Unary) any
+	VisitBinaryExpr(expr *Binary) (any, error)
+	VisitGroupingExpr(expr *Grouping) (any, error)
+	VisitLiteralExpr(expr *Literal) (any, error)
+	VisitUnaryExpr(expr *Unary) (any, error)
 }
 
 // Binary represents a binary expression: left operator right
@@ -20,7 +20,7 @@ type Binary struct {
 	Right    Expr
 }
 
-func (e *Binary) Accept(visitor ExprVisitor) any {
+func (e *Binary) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitBinaryExpr(e)
 }
 
@@ -29,7 +29,7 @@ type Grouping struct {
 	Expression Expr
 }
 
-func (e *Grouping) Accept(visitor ExprVisitor) any {
+func (e *Grouping) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitGroupingExpr(e)
 }
 
@@ -38,7 +38,7 @@ type Literal struct {
 	Value any
 }
 
-func (e *Literal) Accept(visitor ExprVisitor) any {
+func (e *Literal) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitLiteralExpr(e)
 }
 
@@ -48,6 +48,6 @@ type Unary struct {
 	Right    Expr
 }
 
-func (e *Unary) Accept(visitor ExprVisitor) any {
+func (e *Unary) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitUnaryExpr(e)
 }

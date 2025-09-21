@@ -25,7 +25,7 @@ var reservedKeyWordMap = map[string]TokenType {
 }
 
 type Scanner struct {
-	lox GLox
+	lox *GLox
 	source string
 	source_runes []rune
 	tokens []Token
@@ -34,7 +34,7 @@ type Scanner struct {
 	line int
 }
 
-func NewScanner(lox GLox, source string) Scanner {
+func NewScanner(lox *GLox, source string) Scanner {
 	s := Scanner {
 		lox: lox,
 		source: source,
@@ -81,7 +81,7 @@ func (s *Scanner) scanToken() {
 		if s.match('=') {
 			s.addToken(BANG_EQUAL)
 		} else {
-			s.addToken(EQUAL)
+			s.addToken(BANG)
 		}
 	case '=':
 		if s.match('=') {
@@ -102,7 +102,7 @@ func (s *Scanner) scanToken() {
 			s.addToken(GREATER)
 		}
 	case '/':
-		if s.match('/') {
+		if s.match('/') { // Start of comment 
 			// Just scan through comment to the end, then discard it
 			for (s.peek() != '\n' && !s.isAtEnd()) {
 				s.advance()
@@ -112,15 +112,15 @@ func (s *Scanner) scanToken() {
 		}
 		
 	case ' ':
-		// NOP
+		// skip whitespace 
 	case '\r':
-		// NOP
+		// skip whitespace 
 	case '\t':
-		// NOP
+		// skip whitespace
 	case '\n':
 		s.line += 1 
 
-	case '"':
+	case '"': // start of a string 
 		s.scanString()
 	
 	default:
