@@ -11,6 +11,7 @@ type ExprVisitor interface {
 	VisitGroupingExpr(expr *Grouping) (any, error)
 	VisitLiteralExpr(expr *Literal) (any, error)
 	VisitUnaryExpr(expr *Unary) (any, error)
+	VisitVariableExpr(expr *Variable) (any, error)
 }
 
 // Binary represents a binary expression: left operator right
@@ -50,4 +51,13 @@ type Unary struct {
 
 func (e *Unary) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitUnaryExpr(e)
+}
+
+// Variable represents a variable expression: <variable name>
+type Variable struct {
+	name Token
+}
+
+func (v *Variable) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitVariableExpr(v)
 }

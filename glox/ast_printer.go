@@ -1,3 +1,4 @@
+//nolint:unused
 package main
 
 import (
@@ -5,7 +6,7 @@ import (
 	"strings"
 )
 
-type astPrinter struct {
+type astPrinter struct { 
 	//NOP
 }
 
@@ -25,13 +26,17 @@ func (a *astPrinter) VisitGroupingExpr(expr *Grouping) (any, error) {
 
 func (a *astPrinter) VisitLiteralExpr(expr *Literal) (any, error) {
 	if expr.Value == nil {
-		return "nil", nil 
+		return "nil", nil
 	}
 	return fmt.Sprintf("%v", expr.Value), nil
 }
 
 func (a *astPrinter) VisitUnaryExpr(expr *Unary) (any, error) {
 	return a.parenthesize(expr.Operator.lexeme, expr.Right)
+}
+
+func (a *astPrinter) VisitVariableExpr(expr *Variable) (any, error) {
+	return expr.name.lexeme, nil 
 }
 
 func (a *astPrinter) parenthesize(name string, expressions ...Expr) (string, error) {
@@ -47,5 +52,5 @@ func (a *astPrinter) parenthesize(name string, expressions ...Expr) (string, err
 	}
 	builder.WriteString(")")
 
-	return builder.String(), nil 
+	return builder.String(), nil
 }

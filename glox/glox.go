@@ -59,17 +59,20 @@ func (l *GLox) runPrompt() {
 }
 
 func (l *GLox) run(source string) {
+	// Tokenize input 
 	scanner := NewScanner(l, source)
 	tokens := scanner.scanTokens()
-	parser := NewParser(l, tokens)
-	expression, _ := parser.parse()
 
-	if l.hadError {
+	// Parse tokens into valid statements
+	parser := NewParser(l, tokens)
+	statements, _ := parser.parse()
+	if l.hadError { // bail out if parsing failed 
 		return 
 	}
-
-	l.interpreter.interpret(expression)
 	//fmt.Printf("%s\n", (&astPrinter{}).print(expression))
+
+	// Interpret the parsed statements
+	l.interpreter.interpret(statements)
 }
 
 func (l *GLox) error(line int, message string) {

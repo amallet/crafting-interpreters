@@ -1,3 +1,4 @@
+//nolint:unused 
 package main
 
 import (
@@ -39,6 +40,11 @@ func (a *rpnPrinter) VisitUnaryExpr(expr *Unary) (any, error) {
 		return fmt.Sprintf("%s %s", str, expr.Operator.lexeme), nil 
 	}
 }
+
+func (a *rpnPrinter) VisitVariableExpr(expr *Variable) (any, error) {
+	return expr.name.lexeme, nil 
+ }
+ 
 
 func (a *rpnPrinter) rpn_order(operation string, expressions ...Expr) (string, error) {
 	var builder strings.Builder

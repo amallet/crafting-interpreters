@@ -4,15 +4,21 @@ import (
 	"fmt"
 )
 
-// Parser implements a recursive descent parser for the following grammar:
-//
+// Parser implements a recursive descent parser for the following grammar
+// 
+// program        → declaration* EOF;
+// declaration    → varDecl | statement ;
+// varDecl        → "var" IDENTIFIER ("=" expression)? ";" ;
+// statement	  → exprStmt | printStmt ;
+// exprStmt       → expression ";" ;
+// printStmt      → "print" expression ";" ;
 // expression     → equality
 // equality       → comparison ( ( "!=" | "==" ) comparison )*;
 // comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )*;
 // term           → factor ( ( "-" | "+" ) factor )*;
 // factor         → unary ( ( "/" | "*" ) unary )*;
 // unary          → ( "!" | "-" ) unary | primary;
-// primary        → "true" | "false" | "nil" | NUMBER | STRING | "(" expression ")";
+// primary        → "true" | "false" | "nil" | NUMBER | STRING | "(" expression ")" | IDENTIFIER;
 //
 // The grammar follows operator precedence with the following precedence levels
 // (from lowest to highest):
@@ -38,9 +44,99 @@ func NewParser(lox *GLox, tokens []Token) *Parser {
 }
 
 
-func (p *Parser) parse() (Expr, error) {
-	return p.expression()
+// Generate list of ASTs representing the expressions being parsed 
+func (p *Parser) parse() ([]Stmt, error) {
+	statements := make([]Stmt, 0)
+	for !p.isAtEnd() {
+		if stmt, err := p.declaration(); err != nil {
+			return nil, err 
+		} else {
+			statements = append(statements, stmt)
+		}
+	}
+	return statements, nil 
 }
+
+// declaration -> varDecl | statement
+func (p *Parser) declaration() (Stmt, error) {
+	var stmt Stmt
+	var err error 
+
+	if p.match(VAR) {
+		stmt, err = p.varDeclaration()
+	} else {
+		stmt, err = p.statement()
+	}
+
+	// If parsing encountered an error, update parser state to a place where parsing can contine 
+	// and report the error 
+	if err != nil {
+		p.synchronize()
+		return nil, err 
+	}
+
+	return stmt, nil
+}
+
+// varDecl → "var" IDENTIFIER ("=" expression)? ";" ;
+func (p *Parser) varDeclaration() (Stmt, error) {
+	name, err := p.consume(IDENTIFIER, "Expect variable name")
+	if err != nil {
+		return nil, err 
+	}
+
+	// Parse initialization expression, if there is one 
+	var init_expression Expr = nil 
+	if p.match(EQUAL) {
+		if init_expression, err = p.expression(); err != nil {
+			return nil, err 
+		}
+	}
+	
+	if _, err = p.consume(SEMICOLON,"Expect ';' after variable declaration"); err != nil {
+		return nil, err 
+	}
+
+	return &VarStmt { name, init_expression}, nil 
+}
+
+// statemenent → printStmt | exprStmt 
+func (p *Parser) statement() (Stmt, error) {
+	if p.match(PRINT) {
+		return p.printStatement()
+	}
+
+	return p.expressionStatement()
+}
+
+// printStmt → "print" expression ";"
+func (p *Parser) printStatement() (Stmt, error) {
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err 
+	}
+
+	if _, err := p.consume(SEMICOLON, "Expect ';' after value."); err != nil {
+		return nil, err 
+	}
+
+	return &PrintStmt{ expr }, nil 
+}
+
+// exprStmt → expression ";"
+func (p *Parser) expressionStatement() (Stmt, error) {
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(SEMICOLON, "Expect ';' after value."); err != nil {
+		return nil, err 
+	}
+
+	return &ExpressionStmt{ expr }, nil 
+}
+
 
 // expression → equality
 func (p *Parser) expression() (Expr, error) {
@@ -137,7 +233,7 @@ func (p *Parser) unary() (Expr, error) {
 	return p.primary()
 }
 
-// primary → "true" | "false" | "nil" | NUMBER | STRING | "(" expression ")";
+// primary → "true" | "false" | "nil" | NUMBER | STRING |"(" expression ")" | IDENTIFIER;
 func (p *Parser) primary() (Expr, error) {
 	if p.match(TRUE) {
 		return &Literal{TRUE}, nil
@@ -153,6 +249,10 @@ func (p *Parser) primary() (Expr, error) {
 
 	if p.match(NUMBER, STRING) {
 		return &Literal{p.previous().literal}, nil
+	}
+
+	if p.match(IDENTIFIER) {
+		return &Variable{p.previous()}, nil 
 	}
 
 	if p.match(LEFT_PAREN) {
@@ -212,6 +312,38 @@ func (p *Parser) peek() Token {
 
 func (p *Parser) previous() Token {
 	return p.tokens[p.current-1]
+}
+
+// Called in case of parse error, advances through tokens until start of next statement
+func (p *Parser) synchronize() {
+	_ = p.advance()
+
+	for (!p.isAtEnd()) {
+		if (p.previous().token_type == SEMICOLON) {
+			return 
+		}
+
+		switch (p.peek().token_type) {
+		case CLASS:
+			fallthrough
+		case FUN:
+			fallthrough
+		case VAR:
+			fallthrough
+		case FOR:
+			fallthrough
+		case IF:
+			fallthrough
+		case WHILE:
+			fallthrough
+		case PRINT:
+			fallthrough
+		case RETURN:
+			return 
+		}
+
+		_ = p.advance()
+	}
 }
 
 func (p *Parser) constructError(token Token, message string) error {
