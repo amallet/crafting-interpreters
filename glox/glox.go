@@ -33,7 +33,7 @@ func (l *GLox) runFile(file string) {
 	if data, err := os.ReadFile(file); err != nil {
 		log.Fatal(err)
 	} else {
-		l.run(string(data))
+		l.run(string(data), false)
 	}
 
 	if l.hadError {
@@ -50,7 +50,7 @@ func (l *GLox) runPrompt() {
         fmt.Print("> ")
         if scanner.Scan() {
             line := scanner.Text()
-			l.run(line)
+			l.run(line, true)
         } else {
             break
         }
@@ -58,7 +58,7 @@ func (l *GLox) runPrompt() {
 
 }
 
-func (l *GLox) run(source string) {
+func (l *GLox) run(source string, in_repl bool) {
 	// Tokenize input 
 	scanner := NewScanner(l, source)
 	tokens := scanner.scanTokens()
@@ -69,10 +69,9 @@ func (l *GLox) run(source string) {
 	if l.hadError { // bail out if parsing failed 
 		return 
 	}
-	//fmt.Printf("%s\n", (&astPrinter{}).print(expression))
 
 	// Interpret the parsed statements
-	l.interpreter.interpret(statements)
+	l.interpreter.interpret(statements, in_repl)
 }
 
 func (l *GLox) error(line int, message string) {

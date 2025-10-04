@@ -9,10 +9,12 @@ import (
 // program        → declaration* EOF;
 // declaration    → varDecl | statement ;
 // varDecl        → "var" IDENTIFIER ("=" expression)? ";" ;
-// statement	  → exprStmt | printStmt ;
+// statement	  → exprStmt | printStmt | block; 
 // exprStmt       → expression ";" ;
 // printStmt      → "print" expression ";" ;
-// expression     → equality
+// block          → "{" declaration* "}"; 
+// expression     → assignment ";"
+// assignment     → IDENTIFIER "=" assignment | equality; 
 // equality       → comparison ( ( "!=" | "==" ) comparison )*;
 // comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )*;
 // term           → factor ( ( "-" | "+" ) factor )*;
@@ -100,10 +102,18 @@ func (p *Parser) varDeclaration() (Stmt, error) {
 	return &VarStmt { name, init_expression}, nil 
 }
 
-// statemenent → printStmt | exprStmt 
+// statemenent → printStmt | exprStmt | block
 func (p *Parser) statement() (Stmt, error) {
 	if p.match(PRINT) {
 		return p.printStatement()
+	}
+
+	if p.match(LEFT_BRACE) {
+		if statements, err := p.blockStatement(); err != nil {
+			return nil, err 
+		} else {
+			return &BlockStmt{ statements }, nil 
+		}
 	}
 
 	return p.expressionStatement()
@@ -123,6 +133,23 @@ func (p *Parser) printStatement() (Stmt, error) {
 	return &PrintStmt{ expr }, nil 
 }
 
+// // block → "{" declaration* "}"; 
+func (p *Parser) blockStatement() ([]Stmt, error) {
+	statements := make([]Stmt, 0)
+	for (!p.check(RIGHT_BRACE) && !p.isAtEnd()) {
+		if statement, err := p.declaration(); err == nil {
+			statements = append(statements, statement)
+		} else {
+			return nil, err
+		}
+	}
+	if _, err := p.consume(RIGHT_BRACE,"Expect '}' after block."); err != nil {
+		return nil, err 
+	}
+
+	return statements, nil 
+}
+
 // exprStmt → expression ";"
 func (p *Parser) expressionStatement() (Stmt, error) {
 	expr, err := p.expression()
@@ -138,9 +165,35 @@ func (p *Parser) expressionStatement() (Stmt, error) {
 }
 
 
-// expression → equality
+// expression → assignment; 
 func (p *Parser) expression() (Expr, error) {
-	return p.equality()
+	return p.assignment()
+}
+
+// assignment → IDENTIFIER "=" assignment | equality ;
+func (p *Parser) assignment() (Expr, error) {
+	lhs, err := p.equality()
+	if err != nil {
+		return nil, err 
+	}
+
+	// Handle assignment case
+	if (p.match(EQUAL)) {  
+		equals := p.previous()
+		rvalue, err := p.assignment()
+		if err != nil {
+			return nil, err 
+		}
+
+		if lvalue, ok := lhs.(*Variable); ok { // LHS of assignment must be a variable
+			name := lvalue.name
+			return &Assign{ name, rvalue }, nil 
+		} else {
+			return nil, p.constructError(equals, "Invalid assignment target")
+		}
+	}
+
+	return lhs, nil 
 }
 
 // equality → comparison ( ( "!=" | "==" ) comparison )*;

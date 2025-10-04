@@ -7,11 +7,22 @@ type Expr interface {
 
 // ExprVisitor defines the visitor interface for expressions
 type ExprVisitor interface {
+	VisitAssignExpr(expr *Assign) (any, error)
 	VisitBinaryExpr(expr *Binary) (any, error)
 	VisitGroupingExpr(expr *Grouping) (any, error)
 	VisitLiteralExpr(expr *Literal) (any, error)
 	VisitUnaryExpr(expr *Unary) (any, error)
 	VisitVariableExpr(expr *Variable) (any, error)
+}
+
+// Assign represents an assignment expression 
+type Assign struct {
+	name Token
+	value Expr 
+}
+
+func (a *Assign) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitAssignExpr(a)
 }
 
 // Binary represents a binary expression: left operator right

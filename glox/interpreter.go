@@ -18,11 +18,34 @@ func NewInterpreter(lox *GLox) *Interpreter {
 	}
 }
 
-func (i *Interpreter) interpret(statements []Stmt) {
-	for _, stmt := range statements {
-		if err := i.execute(stmt); err != nil {
+func (i *Interpreter) interpret(statements []Stmt, in_repl bool) {
+	// If running in REPL (indicated by in_repl parameter) and the last statement
+	// entered (possibly in a sequence of statements) is an expression, show the 
+	// value of the expression 
+
+	// First run all statements up to the last one 
+	var err error 
+	num_stmts := len(statements)
+	for j := 0; j < num_stmts - 1; j++ { 
+		if err = i.execute(statements[j]); err != nil {
 			i.lox.runtimeError(err)
-			break
+			return 
+		}
+	}
+
+	// Now, if the last statement is actually an expression, evaluate and display the result 
+	if expr_stmt, ok := statements[num_stmts - 1].(*ExpressionStmt); ok && in_repl{
+		expression := expr_stmt.expression
+		if value, err := i.evaluate(expression); err == nil {
+			fmt.Printf("%v\n", value)
+		} else {
+			i.lox.runtimeError(err)
+			return
+		} 
+	} else {
+		if err = i.execute(statements[num_stmts - 1]); err != nil {
+			i.lox.runtimeError(err)
+			return
 		}
 	}
 }
@@ -48,7 +71,7 @@ func (i *Interpreter) VisitVarStmt(stmt *VarStmt) error {
 	}
 
 	// Store the variable name and associated value
-	i.env.define(stmt.name.lexeme, value)
+	i.env.defineVarValue(stmt.name.lexeme, value)
 	return nil
 }
 
@@ -64,6 +87,36 @@ func (i *Interpreter) VisitPrintStmt(stmt *PrintStmt) error {
 	}
 	fmt.Printf("%v\n", value) // Print statement outputs result of evaluating expression
 	return nil
+}
+
+func (i *Interpreter) VisitBlockStmt(stmt *BlockStmt) error {
+	// When interpreting a block, create a new environment to handle 
+	// the lexical scope for that block, and use it to evaluate statements
+	// inside the block 
+	prevEnv := i.env
+	blockEnv := NewEnvironment(i.env)
+	i.env = blockEnv // use new environment to evaluate statements in the block
+	var err error = nil 
+	for _, stmt := range stmt.statements {
+		if err = i.execute(stmt); err != nil {
+			break
+		}
+	}
+	// Done evaluating the block, restore previous environment 
+	i.env = prevEnv
+	return err 
+}
+
+func (i *Interpreter) VisitAssignExpr(expr *Assign) (any, error) {
+	value, err := i.evaluate(expr.value)
+	if err != nil {
+		return nil, err 
+	}
+	if err = i.env.assignVarValue(expr.name, value); err != nil {
+		return nil, err 
+	}
+
+	return value, nil // Assignment expressions return the value on the RHS
 }
 
 func (i *Interpreter) VisitBinaryExpr(expr *Binary) (any, error) {
@@ -189,7 +242,7 @@ func (i *Interpreter) VisitUnaryExpr(expr *Unary) (any, error) {
 }
 
 func (i *Interpreter) VisitVariableExpr(expr *Variable) (any, error) {
-	return i.env.getValue(expr.name) // Evaluating a variable expression just returns the associated value
+	return i.env.getVarValue(expr.name) // Evaluating a variable expression just returns the associated value
 
 }
 
