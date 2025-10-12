@@ -51,6 +51,7 @@ func (l *GLox) runPrompt() {
         if scanner.Scan() {
             line := scanner.Text()
 			l.run(line, true)
+			l.hadError = false; // reset error state
         } else {
             break
         }
@@ -71,7 +72,15 @@ func (l *GLox) run(source string, in_repl bool) {
 	}
 
 	// Interpret the parsed statements
-	l.interpreter.interpret(statements, in_repl)
+	results := l.interpreter.interpret(statements)
+
+	// If in REPL mode, also print the results of any expressions that were 
+	// entered 
+	if in_repl && len(results) > 0 {
+		for _, result := range(results) {
+			fmt.Printf("%v\n", result)
+		}
+	}
 }
 
 func (l *GLox) error(line int, message string) {

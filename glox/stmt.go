@@ -1,22 +1,34 @@
 package main
 
 type Stmt interface {
-	Accept(visitor StmtVisitor) error 
+	Accept(visitor StmtVisitor) error
 }
 
 type StmtVisitor interface {
-	VisitExpressionStmt(stmt *ExpressionStmt) error 
-	VisitPrintStmt(stmt *PrintStmt) error 
-	VisitBlockStmt(stmt *BlockStmt) error 
-	VisitVarStmt(stmt *VarStmt) error 
+	VisitExpressionStmt(stmt *ExpressionStmt) error
+	VisitIfStmt(stmt *IfStmt) error
+	VisitPrintStmt(stmt *PrintStmt) error
+	VisitWhileStmt(stmt *WhileStmt) error
+	VisitBlockStmt(stmt *BlockStmt) error
+	VisitVarStmt(stmt *VarStmt) error
 }
 
 type ExpressionStmt struct {
-	expression Expr 
+	expression Expr
 }
 
-func (e* ExpressionStmt) Accept(visitor StmtVisitor) error {
+func (e *ExpressionStmt) Accept(visitor StmtVisitor) error {
 	return visitor.VisitExpressionStmt(e)
+}
+
+type IfStmt struct {
+	condition  Expr
+	thenBranch Stmt
+	elseBranch Stmt
+}
+
+func (i *IfStmt) Accept(visitor StmtVisitor) error {
+	return visitor.VisitIfStmt(i)
 }
 
 type PrintStmt struct {
@@ -25,6 +37,15 @@ type PrintStmt struct {
 
 func (s *PrintStmt) Accept(visitor StmtVisitor) error {
 	return visitor.VisitPrintStmt(s)
+}
+
+type WhileStmt struct {
+	condition Expr
+	statement Stmt
+}
+
+func (w *WhileStmt) Accept(visitor StmtVisitor) error {
+	return visitor.VisitWhileStmt(w)
 }
 
 type BlockStmt struct {
@@ -36,13 +57,10 @@ func (b *BlockStmt) Accept(visitor StmtVisitor) error {
 }
 
 type VarStmt struct {
-	name Token
+	name        Token
 	initializer Expr
 }
 
 func (v *VarStmt) Accept(visitor StmtVisitor) error {
 	return visitor.VisitVarStmt(v)
 }
-
-
-

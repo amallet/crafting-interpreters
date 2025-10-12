@@ -7,47 +7,38 @@ import (
 
 // The Interpreter object interprets/evaluates the ASTs produced by the Parser
 type Interpreter struct {
-	lox *GLox
+	lox LoxRuntime
 	env *Environment
 }
 
-func NewInterpreter(lox *GLox) *Interpreter {
+func NewInterpreter(lox LoxRuntime) *Interpreter {
 	return &Interpreter{
 		lox: lox,
 		env: NewEnvironment(nil),
 	}
 }
 
-func (i *Interpreter) interpret(statements []Stmt, in_repl bool) {
-	// If running in REPL (indicated by in_repl parameter) and the last statement
-	// entered (possibly in a sequence of statements) is an expression, show the 
-	// value of the expression 
-
-	// First run all statements up to the last one 
-	var err error 
-	num_stmts := len(statements)
-	for j := 0; j < num_stmts - 1; j++ { 
-		if err = i.execute(statements[j]); err != nil {
-			i.lox.runtimeError(err)
-			return 
-		}
-	}
-
-	// Now, if the last statement is actually an expression, evaluate and display the result 
-	if expr_stmt, ok := statements[num_stmts - 1].(*ExpressionStmt); ok && in_repl{
-		expression := expr_stmt.expression
-		if value, err := i.evaluate(expression); err == nil {
-			fmt.Printf("%v\n", value)
+func (i *Interpreter) interpret(statements []Stmt) []any {
+	results := make([]any, 0)
+	for _, stmt := range statements {
+		// Collect the results of evaluating any top-level statements that are
+		// expressions, used for REPL mode
+		if expr_stmt, ok := stmt.(*ExpressionStmt); ok {
+			if value, err := i.evaluate(expr_stmt.expression); err == nil {
+				results = append(results, value)
+			} else {
+				i.lox.runtimeError(err)
+				return nil
+			}
 		} else {
-			i.lox.runtimeError(err)
-			return
-		} 
-	} else {
-		if err = i.execute(statements[num_stmts - 1]); err != nil {
-			i.lox.runtimeError(err)
-			return
+			if err := i.execute(stmt); err != nil {
+				i.lox.runtimeError(err)
+				return nil
+			}
 		}
 	}
+
+	return results
 }
 
 func (i *Interpreter) execute(stmt Stmt) error {
@@ -89,37 +80,71 @@ func (i *Interpreter) VisitPrintStmt(stmt *PrintStmt) error {
 	return nil
 }
 
+func (i *Interpreter) VisitIfStmt(stmt *IfStmt) error {
+	var err error
+	var condition any
+	if condition, err = i.evaluate(stmt.condition); err != nil {
+		return err
+	}
+	if isTruthy(condition) {
+		return i.execute(stmt.thenBranch)
+	} else if stmt.elseBranch != nil {
+		return i.execute(stmt.elseBranch)
+	}
+
+	return nil
+}
+
+func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
+	for true {
+		var condition any
+		var err error
+		if condition, err = i.evaluate(stmt.condition); err != nil {
+			return err
+		}
+		if isTruthy(condition) {
+			if err = i.execute(stmt.statement); err != nil {
+				return err
+			}
+		} else {
+			break
+		}
+	}
+
+	return nil
+}
+
 func (i *Interpreter) VisitBlockStmt(stmt *BlockStmt) error {
-	// When interpreting a block, create a new environment to handle 
+	// When interpreting a block, create a new environment to handle
 	// the lexical scope for that block, and use it to evaluate statements
-	// inside the block 
+	// inside the block
 	prevEnv := i.env
 	blockEnv := NewEnvironment(i.env)
 	i.env = blockEnv // use new environment to evaluate statements in the block
-	var err error = nil 
+	var err error = nil
 	for _, stmt := range stmt.statements {
 		if err = i.execute(stmt); err != nil {
 			break
 		}
 	}
-	// Done evaluating the block, restore previous environment 
+	// Done evaluating the block, restore previous environment
 	i.env = prevEnv
-	return err 
+	return err
 }
 
-func (i *Interpreter) VisitAssignExpr(expr *Assign) (any, error) {
+func (i *Interpreter) VisitAssignExpr(expr *AssignExpr) (any, error) {
 	value, err := i.evaluate(expr.value)
 	if err != nil {
-		return nil, err 
+		return nil, err
 	}
 	if err = i.env.assignVarValue(expr.name, value); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
 	return value, nil // Assignment expressions return the value on the RHS
 }
 
-func (i *Interpreter) VisitBinaryExpr(expr *Binary) (any, error) {
+func (i *Interpreter) VisitBinaryExpr(expr *BinaryExpr) (any, error) {
 	left, err := i.evaluate(expr.Left)
 	if err != nil {
 		return nil, err
@@ -212,15 +237,32 @@ func (i *Interpreter) VisitBinaryExpr(expr *Binary) (any, error) {
 }
 
 // Evaluate expressions in parentheses
-func (i *Interpreter) VisitGroupingExpr(e *Grouping) (any, error) {
+func (i *Interpreter) VisitGroupingExpr(e *GroupingExpr) (any, error) {
 	return i.evaluate(e.Expression)
 }
 
-func (i *Interpreter) VisitLiteralExpr(expr *Literal) (any, error) {
+func (i *Interpreter) VisitLiteralExpr(expr *LiteralExpr) (any, error) {
 	return expr.Value, nil // Interpreting/evaluating a literal expression just returns the actual value
 }
 
-func (i *Interpreter) VisitUnaryExpr(expr *Unary) (any, error) {
+func (i *Interpreter) VisitLogicalExpr(expr *LogicalExpr) (any, error) {
+
+	if left, err := i.evaluate(expr.Left); err != nil {
+		return nil, err
+	} else {
+		if isTruthy(left) {
+			if expr.Operator.token_type == OR {
+				return left, nil
+			}
+		} else if expr.Operator.token_type == AND {
+			return left, nil
+		}
+	}
+
+	return i.evaluate(expr.Right)
+}
+
+func (i *Interpreter) VisitUnaryExpr(expr *UnaryExpr) (any, error) {
 	right, err := i.evaluate(expr.Right)
 	if err != nil {
 		return nil, err
@@ -241,7 +283,7 @@ func (i *Interpreter) VisitUnaryExpr(expr *Unary) (any, error) {
 	return nil, nil
 }
 
-func (i *Interpreter) VisitVariableExpr(expr *Variable) (any, error) {
+func (i *Interpreter) VisitVariableExpr(expr *VariableExpr) (any, error) {
 	return i.env.getVarValue(expr.name) // Evaluating a variable expression just returns the associated value
 
 }

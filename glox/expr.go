@@ -7,68 +7,80 @@ type Expr interface {
 
 // ExprVisitor defines the visitor interface for expressions
 type ExprVisitor interface {
-	VisitAssignExpr(expr *Assign) (any, error)
-	VisitBinaryExpr(expr *Binary) (any, error)
-	VisitGroupingExpr(expr *Grouping) (any, error)
-	VisitLiteralExpr(expr *Literal) (any, error)
-	VisitUnaryExpr(expr *Unary) (any, error)
-	VisitVariableExpr(expr *Variable) (any, error)
+	VisitAssignExpr(expr *AssignExpr) (any, error)
+	VisitBinaryExpr(expr *BinaryExpr) (any, error)
+	VisitGroupingExpr(expr *GroupingExpr) (any, error)
+	VisitLiteralExpr(expr *LiteralExpr) (any, error)
+	VisitLogicalExpr(expr *LogicalExpr) (any, error)
+	VisitUnaryExpr(expr *UnaryExpr) (any, error)
+	VisitVariableExpr(expr *VariableExpr) (any, error)
 }
 
-// Assign represents an assignment expression 
-type Assign struct {
-	name Token
-	value Expr 
+// AssignExpr represents an assignment expression
+type AssignExpr struct {
+	name  Token
+	value Expr
 }
 
-func (a *Assign) Accept(visitor ExprVisitor) (any, error) {
+func (a *AssignExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitAssignExpr(a)
 }
 
-// Binary represents a binary expression: left operator right
-type Binary struct {
+// BinaryExpr represents a binary expression: left operator right
+type BinaryExpr struct {
 	Left     Expr
 	Operator Token
 	Right    Expr
 }
 
-func (e *Binary) Accept(visitor ExprVisitor) (any, error) {
+func (e *BinaryExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitBinaryExpr(e)
 }
 
-// Grouping represents a parenthesized expression: (expression)
-type Grouping struct {
+// GroupingExpr represents a parenthesized expression: (expression)
+type GroupingExpr struct {
 	Expression Expr
 }
 
-func (e *Grouping) Accept(visitor ExprVisitor) (any, error) {
+func (e *GroupingExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitGroupingExpr(e)
 }
 
-// Literal represents a literal value expression
-type Literal struct {
+// LiteralExpr represents a literal value expression
+type LiteralExpr struct {
 	Value any
 }
 
-func (e *Literal) Accept(visitor ExprVisitor) (any, error) {
+func (e *LiteralExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitLiteralExpr(e)
 }
 
-// Unary represents a unary expression: operator right
-type Unary struct {
+// LogicalExpr represents a logical expression (and, or)
+type LogicalExpr struct {
+	Left     Expr
 	Operator Token
 	Right    Expr
 }
 
-func (e *Unary) Accept(visitor ExprVisitor) (any, error) {
+func (l *LogicalExpr) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitLogicalExpr(l)
+}
+
+// UnaryExpr represents a unary expression: operator right
+type UnaryExpr struct {
+	Operator Token
+	Right    Expr
+}
+
+func (e *UnaryExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitUnaryExpr(e)
 }
 
-// Variable represents a variable expression: <variable name>
-type Variable struct {
+// VariableExpr represents a variable expression: <variable name>
+type VariableExpr struct {
 	name Token
 }
 
-func (v *Variable) Accept(visitor ExprVisitor) (any, error) {
+func (v *VariableExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitVariableExpr(v)
 }

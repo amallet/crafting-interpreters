@@ -1,0 +1,309 @@
+package main
+
+import (
+	"testing"
+)
+
+func TestParserVariableDeclaration(t *testing.T) {
+	tests := []struct {
+		input   string
+		varName string
+		hasInit bool
+	}{
+		{"var x;", "x", false},
+		{"var y = 123;", "y", true},
+		{"var name = \"hello\";", "name", true},
+		{"var flag = true;", "flag", true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			lox := NewTestGLox()
+			scanner := NewScanner(lox, test.input)
+			tokens := scanner.scanTokens()
+
+			parser := NewParser(lox, tokens)
+			statements, err := parser.parse()
+
+			if err != nil {
+				t.Errorf("Parse error for %s: %v", test.input, err)
+				return
+			}
+
+			if len(statements) != 1 {
+				t.Errorf("Expected 1 statement, got %d", len(statements))
+				return
+			}
+
+			varStmt, ok := statements[0].(*VarStmt)
+			if !ok {
+				t.Errorf("Expected VarStmt, got %T", statements[0])
+				return
+			}
+
+			if varStmt.name.lexeme != test.varName {
+				t.Errorf("Expected variable name %s, got %s", test.varName, varStmt.name.lexeme)
+			}
+
+			if (varStmt.initializer != nil) != test.hasInit {
+				t.Errorf("Expected hasInit %v, got %v", test.hasInit, varStmt.initializer != nil)
+			}
+		})
+	}
+}
+
+func TestParserPrintStatement(t *testing.T) {
+	input := "print 123;"
+	lox := NewTestGLox()
+	scanner := NewScanner(lox, input)
+	tokens := scanner.scanTokens()
+
+	parser := NewParser(lox, tokens)
+	statements, err := parser.parse()
+
+	if err != nil {
+		t.Errorf("Parse error for %s: %v", input, err)
+		return
+	}
+
+	if len(statements) != 1 {
+		t.Errorf("Expected 1 statement, got %d", len(statements))
+		return
+	}
+
+	printStmt, ok := statements[0].(*PrintStmt)
+	if !ok {
+		t.Errorf("Expected PrintStmt, got %T", statements[0])
+		return
+	}
+
+	literalExpr, ok := printStmt.expression.(*LiteralExpr)
+	if !ok {
+		t.Errorf("Expected LiteralExpr, got %T", printStmt.expression)
+		return
+	}
+
+	if literalExpr.Value != 123.0 {
+		t.Errorf("Expected 123.0, got %v", literalExpr.Value)
+	}
+}
+
+func TestParserIfStatement(t *testing.T) {
+	input := "if (true) print 1;"
+	lox := NewTestGLox()
+	scanner := NewScanner(lox, input)
+	tokens := scanner.scanTokens()
+
+	parser := NewParser(lox, tokens)
+	statements, err := parser.parse()
+
+	if err != nil {
+		t.Errorf("Parse error for %s: %v", input, err)
+		return
+	}
+
+	if len(statements) != 1 {
+		t.Errorf("Expected 1 statement, got %d", len(statements))
+		return
+	}
+
+	ifStmt, ok := statements[0].(*IfStmt)
+	if !ok {
+		t.Errorf("Expected IfStmt, got %T", statements[0])
+		return
+	}
+
+	// Check condition
+	condition, ok := ifStmt.condition.(*LiteralExpr)
+	if !ok {
+		t.Errorf("Expected LiteralExpr condition, got %T", ifStmt.condition)
+		return
+	}
+
+	if condition.Value != true {
+		t.Errorf("Expected true condition, got %v", condition.Value)
+	}
+
+	// Check then branch
+	thenPrintStmt, ok := ifStmt.thenBranch.(*PrintStmt)
+	if !ok {
+		t.Errorf("Expected PrintStmt then branch, got %T", ifStmt.thenBranch)
+		return
+	}
+
+	thenExpr, ok := thenPrintStmt.expression.(*LiteralExpr)
+	if !ok {
+		t.Errorf("Expected LiteralExpr in then branch, got %T", thenPrintStmt.expression)
+		return
+	}
+
+	if thenExpr.Value != 1.0 {
+		t.Errorf("Expected 1.0 in then branch, got %v", thenExpr.Value)
+	}
+
+	// Check else branch (should be nil)
+	if ifStmt.elseBranch != nil {
+		t.Errorf("Expected nil else branch, got %T", ifStmt.elseBranch)
+	}
+}
+
+func TestParserIfElseStatement(t *testing.T) {
+	input := "if (false) print 1; else print 2;"
+	lox := NewTestGLox()
+	scanner := NewScanner(lox, input)
+	tokens := scanner.scanTokens()
+
+	parser := NewParser(lox, tokens)
+	statements, err := parser.parse()
+
+	if err != nil {
+		t.Errorf("Parse error for %s: %v", input, err)
+		return
+	}
+
+	if len(statements) != 1 {
+		t.Errorf("Expected 1 statement, got %d", len(statements))
+		return
+	}
+
+	ifStmt, ok := statements[0].(*IfStmt)
+	if !ok {
+		t.Errorf("Expected IfStmt, got %T", statements[0])
+		return
+	}
+
+	// Check else branch exists
+	if ifStmt.elseBranch == nil {
+		t.Error("Expected else branch, got nil")
+		return
+	}
+
+	elsePrintStmt, ok := ifStmt.elseBranch.(*PrintStmt)
+	if !ok {
+		t.Errorf("Expected PrintStmt else branch, got %T", ifStmt.elseBranch)
+		return
+	}
+
+	elseExpr, ok := elsePrintStmt.expression.(*LiteralExpr)
+	if !ok {
+		t.Errorf("Expected LiteralExpr in else branch, got %T", elsePrintStmt.expression)
+		return
+	}
+
+	if elseExpr.Value != 2.0 {
+		t.Errorf("Expected 2.0 in else branch, got %v", elseExpr.Value)
+	}
+}
+
+func TestParserWhileStatement(t *testing.T) {
+	input := "while (true) print 1;"
+	lox := NewTestGLox()
+	scanner := NewScanner(lox, input)
+	tokens := scanner.scanTokens()
+
+	parser := NewParser(lox, tokens)
+	statements, err := parser.parse()
+
+	if err != nil {
+		t.Errorf("Parse error for %s: %v", input, err)
+		return
+	}
+
+	if len(statements) != 1 {
+		t.Errorf("Expected 1 statement, got %d", len(statements))
+		return
+	}
+
+	whileStmt, ok := statements[0].(*WhileStmt)
+	if !ok {
+		t.Errorf("Expected WhileStmt, got %T", statements[0])
+		return
+	}
+
+	// Check condition
+	condition, ok := whileStmt.condition.(*LiteralExpr)
+	if !ok {
+		t.Errorf("Expected LiteralExpr condition, got %T", whileStmt.condition)
+		return
+	}
+
+	if condition.Value != true {
+		t.Errorf("Expected true condition, got %v", condition.Value)
+	}
+
+	// Check body
+	bodyPrintStmt, ok := whileStmt.statement.(*PrintStmt)
+	if !ok {
+		t.Errorf("Expected PrintStmt body, got %T", whileStmt.statement)
+		return
+	}
+
+	bodyExpr, ok := bodyPrintStmt.expression.(*LiteralExpr)
+	if !ok {
+		t.Errorf("Expected LiteralExpr in body, got %T", bodyPrintStmt.expression)
+		return
+	}
+
+	if bodyExpr.Value != 1.0 {
+		t.Errorf("Expected 1.0 in body, got %v", bodyExpr.Value)
+	}
+}
+
+func TestParserBlockStatement(t *testing.T) {
+	input := "{ var x = 1; print x; }"
+	lox := NewTestGLox()
+	scanner := NewScanner(lox, input)
+	tokens := scanner.scanTokens()
+
+	parser := NewParser(lox, tokens)
+	statements, err := parser.parse()
+
+	if err != nil {
+		t.Errorf("Parse error for %s: %v", input, err)
+		return
+	}
+
+	if len(statements) != 1 {
+		t.Errorf("Expected 1 statement, got %d", len(statements))
+		return
+	}
+
+	blockStmt, ok := statements[0].(*BlockStmt)
+	if !ok {
+		t.Errorf("Expected BlockStmt, got %T", statements[0])
+		return
+	}
+
+	if len(blockStmt.statements) != 2 {
+		t.Errorf("Expected 2 statements in block, got %d", len(blockStmt.statements))
+		return
+	}
+
+	// Check first statement (var declaration)
+	varStmt, ok := blockStmt.statements[0].(*VarStmt)
+	if !ok {
+		t.Errorf("Expected VarStmt as first statement, got %T", blockStmt.statements[0])
+		return
+	}
+
+	if varStmt.name.lexeme != "x" {
+		t.Errorf("Expected variable name 'x', got %s", varStmt.name.lexeme)
+	}
+
+	// Check second statement (print)
+	printStmt, ok := blockStmt.statements[1].(*PrintStmt)
+	if !ok {
+		t.Errorf("Expected PrintStmt as second statement, got %T", blockStmt.statements[1])
+		return
+	}
+
+	variableExpr, ok := printStmt.expression.(*VariableExpr)
+	if !ok {
+		t.Errorf("Expected VariableExpr in print, got %T", printStmt.expression)
+		return
+	}
+
+	if variableExpr.name.lexeme != "x" {
+		t.Errorf("Expected variable name 'x' in print, got %s", variableExpr.name.lexeme)
+	}
+}
