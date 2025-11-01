@@ -113,10 +113,18 @@ The `LoxCallable` interface abstracts callable entities (functions and built-ins
 - `call(interpreter, arguments)` - Executes the callable with given arguments
 
 `LoxFunction` implements `LoxCallable` and wraps user-defined functions:
-- Each function creates a new environment chained to the global environment
+- Functions capture their enclosing environment (closure) at declaration time
+- Each function call creates a new environment chained to the captured closure (not the global environment)
 - Parameters are bound to argument values in the function's environment
 - Return values are propagated via `ReturnValue` error wrapper to unwind the call stack
 - Functions can be stored in variables and passed as values
+- Functions can access and modify variables from their enclosing scope even after that scope exits
+
+**Closures**: Functions capture variables from their lexical environment. This enables:
+- Functions returning other functions that maintain independent state
+- Function factories (e.g., `makeAdder(n)` returning a function that adds `n`)
+- Multiple closures with independent captured variables
+- Closures persisting after their enclosing scope exits
 
 Built-in functions (builtin_fns.go):
 - `clock()` - Returns current Unix time in milliseconds (0 parameters)
@@ -193,7 +201,8 @@ Tests are organized by component:
 - The interpreter maintains a global environment that persists across REPL inputs
 - Assignment is an expression (returns the assigned value) not a statement
 - Functions are first-class values that can be stored in variables and passed around
-- Function calls create new environments chained to the global environment (not the caller's environment)
+- Functions capture their enclosing environment at declaration time (closures)
+- Function calls create new environments chained to the captured closure (enables closure behavior)
 - Return values are propagated using `ReturnValue` error wrapper to unwind the call stack
 - Maximum 255 parameters and 255 arguments are enforced by the parser
 - Go interfaces are used to implement the visitor pattern (vs. classes in Java)
@@ -212,6 +221,7 @@ Tests are organized by component:
 - **Blocks**: Lexical scoping with `{}` blocks
 - **Functions**: Function declarations with parameters and return statements
 - **Function Calls**: Call expressions with argument passing and return value handling
+- **Closures**: Functions capture variables from their enclosing lexical scope
 - **Print Statement**: Built-in `print` statement for output
 - **Built-in Functions**: `clock()` function for getting current time
 - **Comments**: Single-line comments with `//`
@@ -320,4 +330,55 @@ fun add(a, b) {
 
 var sum = add(3, 4);
 print sum;  // 7
+```
+
+**Closures**
+```lox
+// Function factory - returns a function with captured state
+fun makeCounter() {
+    var i = 0;
+    fun count() {
+        i = i + 1;
+        return i;
+    }
+    return count;
+}
+
+var counter = makeCounter();
+print counter();  // 1
+print counter();  // 2
+print counter();  // 3
+
+// Multiple independent closures
+var counter1 = makeCounter();
+var counter2 = makeCounter();
+print counter1();  // 1
+print counter1();  // 2
+print counter2();  // 1 (independent state)
+print counter2();  // 2
+
+// Closure factory with parameters
+fun makeAdder(n) {
+    fun add(x) {
+        return x + n;
+    }
+    return add;
+}
+
+var add5 = makeAdder(5);
+var add10 = makeAdder(10);
+print add5(3);   // 8
+print add10(3);  // 13
+
+// Closures capture variables even after scope exits
+fun outer() {
+    var message = "captured";
+    fun inner() {
+        return message;
+    }
+    return inner;
+}
+
+var getMessage = outer();
+print getMessage();  // "captured"
 ```

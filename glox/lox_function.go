@@ -4,11 +4,12 @@ package main
 // needs to be interpreted to execute a Lox function.
 type LoxFunction struct {
 	declaration *FunctionStmt
+	closure *Environment 
 }
 
 // Execute the actual function that's wrapped by the enclosing LoxFunction
 func (lf *LoxFunction) call(interpreter *Interpreter, arguments []any) (any, error) {
-	env := NewEnvironment(interpreter.globals)
+	env := NewEnvironment(lf.closure)
 	for i, param := range lf.declaration.params {
 		env.defineVarValue(param.lexeme, arguments[i])
 	}

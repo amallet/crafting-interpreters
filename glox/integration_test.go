@@ -862,6 +862,182 @@ double(5, 10);
 	})
 }
 
+func TestIntegrationClosures(t *testing.T) {
+	t.Run("Simple closure - capture outer variable", func(t *testing.T) {
+		program := `
+var message = "Hello";
+fun getMessage() {
+	return message;
+}
+print getMessage();
+`
+
+		expected := []string{"Hello"}
+		runProgramAndCheckOutput(t, program, expected, "Simple closure")
+	})
+
+	t.Run("Closure modifies captured variable", func(t *testing.T) {
+		program := `
+var count = 0;
+fun increment() {
+	count = count + 1;
+	return count;
+}
+print increment();
+print increment();
+print increment();
+`
+
+		expected := []string{"1", "2", "3"}
+		runProgramAndCheckOutput(t, program, expected, "Closure modifies captured variable")
+	})
+
+	t.Run("Function returns closure", func(t *testing.T) {
+		program := `
+fun makeCounter() {
+	var i = 0;
+	fun count() {
+		i = i + 1;
+		return i;
+	}
+	return count;
+}
+
+var counter = makeCounter();
+print counter();
+print counter();
+print counter();
+`
+
+		expected := []string{"1", "2", "3"}
+		runProgramAndCheckOutput(t, program, expected, "Function returns closure")
+	})
+
+	t.Run("Multiple closures with independent state", func(t *testing.T) {
+		program := `
+fun makeCounter() {
+	var i = 0;
+	fun count() {
+		i = i + 1;
+		return i;
+	}
+	return count;
+}
+
+var counter1 = makeCounter();
+var counter2 = makeCounter();
+print counter1();
+print counter1();
+print counter2();
+print counter2();
+print counter1();
+`
+
+		expected := []string{"1", "2", "1", "2", "3"}
+		runProgramAndCheckOutput(t, program, expected, "Multiple closures with independent state")
+	})
+
+	t.Run("Closure factory with parameters", func(t *testing.T) {
+		program := `
+fun makeAdder(n) {
+	fun add(x) {
+		return x + n;
+	}
+	return add;
+}
+
+var add5 = makeAdder(5);
+var add10 = makeAdder(10);
+print add5(3);
+print add10(3);
+print add5(7);
+`
+
+		expected := []string{"8", "13", "12"}
+		runProgramAndCheckOutput(t, program, expected, "Closure factory with parameters")
+	})
+
+	t.Run("Closure captures variable after scope exits", func(t *testing.T) {
+		program := `
+fun test() {
+	var value = "captured";
+	fun getValue() {
+		return value;
+	}
+	return getValue;
+}
+
+var getter = test();
+print getter();
+`
+
+		expected := []string{"captured"}
+		runProgramAndCheckOutput(t, program, expected, "Closure captures variable after scope exits")
+	})
+
+	t.Run("Nested closures", func(t *testing.T) {
+		program := `
+var outer = "outer";
+fun outerFun() {
+	var middle = "middle";
+	fun middleFun() {
+		var inner = "inner";
+		fun innerFun() {
+			return outer + middle + inner;
+		}
+		return innerFun;
+	}
+	return middleFun;
+}
+
+var getMiddleFun = outerFun();
+var getInnerFun = getMiddleFun();
+print getInnerFun();
+`
+
+		expected := []string{"outermiddleinner"}
+		runProgramAndCheckOutput(t, program, expected, "Nested closures")
+	})
+
+	t.Run("Closure captures multiple variables", func(t *testing.T) {
+		program := `
+var a = 1;
+var b = 2;
+fun makeSum() {
+	var c = 3;
+	fun sum() {
+		return a + b + c;
+	}
+	return sum;
+}
+
+var getSum = makeSum();
+print getSum();
+`
+
+		expected := []string{"6"}
+		runProgramAndCheckOutput(t, program, expected, "Closure captures multiple variables")
+	})
+
+	t.Run("Closure sees updates to captured variable", func(t *testing.T) {
+		program := `
+var x = 0;
+fun getX() {
+	return x;
+}
+
+print getX();
+x = 10;
+print getX();
+x = 20;
+print getX();
+`
+
+		expected := []string{"0", "10", "20"}
+		runProgramAndCheckOutput(t, program, expected, "Closure sees updates to captured variable")
+	})
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================

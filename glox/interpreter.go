@@ -77,7 +77,7 @@ func (i *Interpreter) VisitExpressionStmt(stmt *ExpressionStmt) error {
 
 
 func (i *Interpreter) VisitFunctionStmt(stmt *FunctionStmt) error {
-	loxFn := &LoxFunction{stmt}
+	loxFn := &LoxFunction{stmt, i.env}
 	i.env.defineVarValue(stmt.name.lexeme, loxFn)
 	return nil 
 }
