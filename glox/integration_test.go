@@ -690,6 +690,178 @@ print equality;
 	})
 }
 
+func TestIntegrationFunctions(t *testing.T) {
+	t.Run("Simple function call", func(t *testing.T) {
+		program := `
+fun greet(name) {
+	print "Hello, " + name + "!";
+}
+greet("World");
+greet("Alice");
+`
+
+		expected := []string{"Hello, World!", "Hello, Alice!"}
+		runProgramAndCheckOutput(t, program, expected, "Simple function call")
+	})
+
+	t.Run("Function with return value", func(t *testing.T) {
+		program := `
+fun add(a, b) {
+	return a + b;
+}
+var sum = add(3, 4);
+print sum;
+print add(10, 20);
+`
+
+		expected := []string{"7", "30"}
+		runProgramAndCheckOutput(t, program, expected, "Function with return value")
+	})
+
+	t.Run("Function without return", func(t *testing.T) {
+		program := `
+fun sayHello() {
+	print "Hello!";
+}
+sayHello();
+`
+
+		expected := []string{"Hello!"}
+		runProgramAndCheckOutput(t, program, expected, "Function without return")
+	})
+
+	t.Run("Recursive function", func(t *testing.T) {
+		program := `
+fun factorial(n) {
+	if (n <= 1) {
+		return 1;
+	}
+	return n * factorial(n - 1);
+}
+print factorial(5);
+`
+
+		expected := []string{"120"}
+		runProgramAndCheckOutput(t, program, expected, "Recursive function")
+	})
+
+	t.Run("Function with multiple parameters", func(t *testing.T) {
+		program := `
+fun multiply(a, b, c) {
+	return a * b * c;
+}
+print multiply(2, 3, 4);
+`
+
+		expected := []string{"24"}
+		runProgramAndCheckOutput(t, program, expected, "Function with multiple parameters")
+	})
+
+	t.Run("Function scope - parameters don't leak", func(t *testing.T) {
+		program := `
+fun test(x) {
+	print x;
+}
+var x = "global";
+test("local");
+print x;
+`
+
+		expected := []string{"local", "global"}
+		runProgramAndCheckOutput(t, program, expected, "Function scope")
+	})
+
+	t.Run("Function can access global variables", func(t *testing.T) {
+		program := `
+var global = "global";
+fun test() {
+	print global;
+}
+test();
+`
+
+		expected := []string{"global"}
+		runProgramAndCheckOutput(t, program, expected, "Function access global variables")
+	})
+
+	t.Run("Nested function calls", func(t *testing.T) {
+		program := `
+fun add(a, b) {
+	return a + b;
+}
+fun multiply(a, b) {
+	return a * b;
+}
+print add(multiply(2, 3), multiply(4, 5));
+`
+
+		expected := []string{"26"}
+		runProgramAndCheckOutput(t, program, expected, "Nested function calls")
+	})
+
+	t.Run("Return early from function", func(t *testing.T) {
+		program := `
+fun test(x) {
+	if (x < 0) {
+		return "negative";
+	}
+	return "positive";
+}
+print test(-5);
+print test(10);
+`
+
+		expected := []string{"negative", "positive"}
+		runProgramAndCheckOutput(t, program, expected, "Return early from function")
+	})
+
+	t.Run("Function returns nil by default", func(t *testing.T) {
+		program := `
+fun noReturn() {
+	var x = 42;
+}
+var result = noReturn();
+print result;
+`
+
+		expected := []string{"<nil>"}
+		runProgramAndCheckOutput(t, program, expected, "Function returns nil by default")
+	})
+}
+
+func TestIntegrationFunctionErrors(t *testing.T) {
+	t.Run("Call non-callable value", func(t *testing.T) {
+		program := `
+var x = 42;
+x();
+`
+
+		runProgramAndExpectError(t, program, "Can only call functions and classes.", "Call non-callable value")
+	})
+
+	t.Run("Call function with wrong number of arguments - too few", func(t *testing.T) {
+		program := `
+fun add(a, b) {
+	return a + b;
+}
+add(1);
+`
+
+		runProgramAndExpectError(t, program, "Expected 2 arguments but got 1", "Call function with too few arguments")
+	})
+
+	t.Run("Call function with wrong number of arguments - too many", func(t *testing.T) {
+		program := `
+fun double(x) {
+	return x * 2;
+}
+double(5, 10);
+`
+
+		runProgramAndExpectError(t, program, "Expected 1 arguments but got 2", "Call function with too many arguments")
+	})
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================

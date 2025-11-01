@@ -8,13 +8,17 @@ import (
 // The Interpreter object interprets/evaluates the ASTs produced by the Parser
 type Interpreter struct {
 	lox LoxRuntime
+	globals *Environment
 	env *Environment
 }
 
 func NewInterpreter(lox LoxRuntime) *Interpreter {
+	globals := NewEnvironment(nil)
+	globals.defineVarValue("clock", clockFn{})
 	return &Interpreter{
 		lox: lox,
-		env: NewEnvironment(nil),
+		globals: globals,
+		env: globals,
 	}
 }
 
@@ -71,6 +75,14 @@ func (i *Interpreter) VisitExpressionStmt(stmt *ExpressionStmt) error {
 	return err
 }
 
+
+func (i *Interpreter) VisitFunctionStmt(stmt *FunctionStmt) error {
+	loxFn := &LoxFunction{stmt}
+	i.env.defineVarValue(stmt.name.lexeme, loxFn)
+	return nil 
+}
+
+// Execute print statement 
 func (i *Interpreter) VisitPrintStmt(stmt *PrintStmt) error {
 	value, err := i.evaluate(stmt.expression)
 	if err != nil {
@@ -80,6 +92,28 @@ func (i *Interpreter) VisitPrintStmt(stmt *PrintStmt) error {
 	return nil
 }
 
+// Execute return statement
+func (i *Interpreter) VisitReturnStmt(stmt *ReturnStmt) error {
+	var value any 
+	var err error
+	
+	if stmt.value != nil {
+		// Evaluate the expression to be returned, and then wrap it in a 
+		// special sentinel type that conforms to the Error() interface, but
+		// actually wraps the return value. This is used to short-cut execution
+		// and unwind the call stack. Not great, but it's what we've got. 
+		if value, err = i.evaluate(stmt.value); err != nil {
+			return err 
+		} else {
+			// 
+			return &ReturnValue{value}
+		}
+	}
+
+	return nil 
+}
+
+// Execute 'if' statement 
 func (i *Interpreter) VisitIfStmt(stmt *IfStmt) error {
 	var err error
 	var condition any
@@ -96,7 +130,7 @@ func (i *Interpreter) VisitIfStmt(stmt *IfStmt) error {
 }
 
 func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
-	for true {
+	for {
 		var condition any
 		var err error
 		if condition, err = i.evaluate(stmt.condition); err != nil {
@@ -114,15 +148,22 @@ func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
 	return nil
 }
 
+// Execute statements within a block ie { ... }
 func (i *Interpreter) VisitBlockStmt(stmt *BlockStmt) error {
 	// When interpreting a block, create a new environment to handle
 	// the lexical scope for that block, and use it to evaluate statements
 	// inside the block
+	blockEnv := NewEnvironment(i.env) 
+	return i.executeBlock(stmt.statements, blockEnv)
+}
+
+// Execute block of statements, within the supplied environment
+func (i *Interpreter) executeBlock(statements []Stmt, blockEnv *Environment) error {
+
 	prevEnv := i.env
-	blockEnv := NewEnvironment(i.env)
 	i.env = blockEnv // use new environment to evaluate statements in the block
 	var err error = nil
-	for _, stmt := range stmt.statements {
+	for _, stmt := range statements {
 		if err = i.execute(stmt); err != nil {
 			break
 		}
@@ -236,15 +277,52 @@ func (i *Interpreter) VisitBinaryExpr(expr *BinaryExpr) (any, error) {
 	return nil, nil
 }
 
+// Evaluate function calls 
+func (i *Interpreter) VisitCallExpr(e *CallExpr) (any, error) {
+	var callee any
+	var arguments []any
+	var callable LoxCallable 
+	var err error 
+	
+	// Resolve function being called 
+	if callee, err = i.evaluate(e.Callee); err != nil {
+		return nil, err 
+	}
+
+	// Generate values for all the arguments 
+	arguments = make([]any, 0)
+	for _, arg := range e.Arguments {
+		if value, err := i.evaluate(arg); err != nil {
+			return nil, err 
+		} else {
+			arguments = append(arguments, value )
+		}
+	}
+
+	// Make actual call to function, if it is callable
+	var ok bool  
+	if callable, ok = callee.(LoxCallable); !ok {
+		return nil, RuntimeError{e.Paren, "Can only call functions and classes."}
+	}
+	if callable.arity() != len(arguments) {
+		return nil, RuntimeError{e.Paren, 
+			fmt.Sprintf("Expected %d arguments but got %d", callable.arity(), len(arguments))}
+	}
+
+	return callable.call(i, arguments)
+}
+
 // Evaluate expressions in parentheses
 func (i *Interpreter) VisitGroupingExpr(e *GroupingExpr) (any, error) {
 	return i.evaluate(e.Expression)
 }
 
+// Evaluate a literal expression
 func (i *Interpreter) VisitLiteralExpr(expr *LiteralExpr) (any, error) {
 	return expr.Value, nil // Interpreting/evaluating a literal expression just returns the actual value
 }
 
+// Evaluate logical (AND, OR) expression
 func (i *Interpreter) VisitLogicalExpr(expr *LogicalExpr) (any, error) {
 
 	if left, err := i.evaluate(expr.Left); err != nil {
@@ -262,6 +340,7 @@ func (i *Interpreter) VisitLogicalExpr(expr *LogicalExpr) (any, error) {
 	return i.evaluate(expr.Right)
 }
 
+// Evaluate unary expr eg -5, !foo
 func (i *Interpreter) VisitUnaryExpr(expr *UnaryExpr) (any, error) {
 	right, err := i.evaluate(expr.Right)
 	if err != nil {
@@ -283,6 +362,7 @@ func (i *Interpreter) VisitUnaryExpr(expr *UnaryExpr) (any, error) {
 	return nil, nil
 }
 
+// Evaluate variable 
 func (i *Interpreter) VisitVariableExpr(expr *VariableExpr) (any, error) {
 	return i.env.getVarValue(expr.name) // Evaluating a variable expression just returns the associated value
 
@@ -315,3 +395,6 @@ func convertNumberOperands(operator Token, a, b any) (float64, float64, error) {
 func isEqual(a any, b any) bool {
 	return reflect.DeepEqual(a, b)
 }
+
+
+

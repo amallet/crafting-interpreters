@@ -8,10 +8,8 @@ import (
 // Test helper to create a new interpreter with test environment
 func createTestInterpreter() *Interpreter {
 	testGLox := NewTestGLox()
-	return &Interpreter{
-		lox: testGLox,
-		env: NewEnvironment(nil),
-	}
+	interpreter := NewInterpreter(testGLox)
+	return interpreter
 }
 
 // Test helper to evaluate an expression and return the result
@@ -1283,6 +1281,444 @@ func TestErrorHandling(t *testing.T) {
 		}
 		if runtimeErr.message != "operands to operator - must be numbers" {
 			t.Errorf("Expected 'operands to operator - must be numbers', got '%s'", runtimeErr.message)
+		}
+	})
+}
+
+// ============================================================================
+// FUNCTION TESTS
+// ============================================================================
+
+func TestFunctionDeclaration(t *testing.T) {
+	t.Run("Function declaration stores function in environment", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Create a simple function
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("foo", 1),
+			params:  []Token{},
+			body:   []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value:   &LiteralExpr{Value: 42.0},
+				},
+			},
+		}
+
+		executeStatement(t, interpreter, funcStmt)
+
+		// Check that function is stored in environment
+		funcExpr := &VariableExpr{name: createIdentifierToken("foo", 2)}
+		result := evaluateExpression(t, interpreter, funcExpr)
+
+		// Verify it's a LoxFunction
+		_, ok := result.(*LoxFunction)
+		if !ok {
+			t.Errorf("Expected LoxFunction, got %T", result)
+		}
+	})
+
+	t.Run("Function with parameters", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("add", 1),
+			params: []Token{
+				createIdentifierToken("a", 1),
+				createIdentifierToken("b", 1),
+			},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value: &BinaryExpr{
+						Left:     &VariableExpr{name: createIdentifierToken("a", 1)},
+						Operator: createOperatorToken(PLUS, 1),
+						Right:    &VariableExpr{name: createIdentifierToken("b", 1)},
+					},
+				},
+			},
+		}
+
+		executeStatement(t, interpreter, funcStmt)
+
+		// Verify function arity
+		funcExpr := &VariableExpr{name: createIdentifierToken("add", 2)}
+		result := evaluateExpression(t, interpreter, funcExpr)
+
+		funcImpl, ok := result.(*LoxFunction)
+		if !ok {
+			t.Fatalf("Expected LoxFunction, got %T", result)
+		}
+
+		if funcImpl.arity() != 2 {
+			t.Errorf("Expected arity 2, got %d", funcImpl.arity())
+		}
+	})
+}
+
+func TestFunctionCall(t *testing.T) {
+	t.Run("Call function with no arguments", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Define a function that returns 42
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("getAnswer", 1),
+			params: []Token{},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value:   &LiteralExpr{Value: 42.0},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call the function
+		callExpr := &CallExpr{
+			Callee: &VariableExpr{name: createIdentifierToken("getAnswer", 2)},
+			Paren:  createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+		assertEqual(t, 42.0, result, "Function call result")
+	})
+
+	t.Run("Call function with one argument", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Define a function that doubles its argument
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("double", 1),
+			params: []Token{createIdentifierToken("x", 1)},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value: &BinaryExpr{
+						Left:     &VariableExpr{name: createIdentifierToken("x", 1)},
+						Operator: createOperatorToken(STAR, 1),
+						Right:    &LiteralExpr{Value: 2.0},
+					},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call the function with argument 5
+		callExpr := &CallExpr{
+			Callee: &VariableExpr{name: createIdentifierToken("double", 2)},
+			Paren:  createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{
+				&LiteralExpr{Value: 5.0},
+			},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+		assertEqual(t, 10.0, result, "Function call with argument")
+	})
+
+	t.Run("Call function with multiple arguments", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Define an add function
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("add", 1),
+			params: []Token{
+				createIdentifierToken("a", 1),
+				createIdentifierToken("b", 1),
+			},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value: &BinaryExpr{
+						Left:     &VariableExpr{name: createIdentifierToken("a", 1)},
+						Operator: createOperatorToken(PLUS, 1),
+						Right:    &VariableExpr{name: createIdentifierToken("b", 1)},
+					},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call the function
+		callExpr := &CallExpr{
+			Callee: &VariableExpr{name: createIdentifierToken("add", 2)},
+			Paren:  createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{
+				&LiteralExpr{Value: 3.0},
+				&LiteralExpr{Value: 4.0},
+			},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+		assertEqual(t, 7.0, result, "Function call with multiple arguments")
+	})
+
+	t.Run("Recursive function call", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Define a recursive factorial function
+		// Note: This is a simplified version for testing
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("factorial", 1),
+			params: []Token{createIdentifierToken("n", 1)},
+			body: []Stmt{
+				&IfStmt{
+					condition: &BinaryExpr{
+						Left:     &VariableExpr{name: createIdentifierToken("n", 1)},
+						Operator: createOperatorToken(LESS_EQUAL, 1),
+						Right:    &LiteralExpr{Value: 1.0},
+					},
+					thenBranch: &ReturnStmt{
+						keyword: createKeywordToken(RETURN, 1),
+						value:   &LiteralExpr{Value: 1.0},
+					},
+					elseBranch: nil,
+				},
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value: &BinaryExpr{
+						Left: &VariableExpr{name: createIdentifierToken("n", 1)},
+						Operator: createOperatorToken(STAR, 1),
+						Right: &CallExpr{
+							Callee: &VariableExpr{name: createIdentifierToken("factorial", 1)},
+							Paren:  createOperatorToken(RIGHT_PAREN, 1),
+							Arguments: []Expr{
+								&BinaryExpr{
+									Left:     &VariableExpr{name: createIdentifierToken("n", 1)},
+									Operator: createOperatorToken(MINUS, 1),
+									Right:    &LiteralExpr{Value: 1.0},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call factorial(5)
+		callExpr := &CallExpr{
+			Callee: &VariableExpr{name: createIdentifierToken("factorial", 2)},
+			Paren:  createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{
+				&LiteralExpr{Value: 5.0},
+			},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+		assertEqual(t, 120.0, result, "Recursive function call")
+	})
+}
+
+func TestReturnStatement(t *testing.T) {
+	t.Run("Return with value", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Create a function that returns a value
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("test", 1),
+			params: []Token{},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value:   &LiteralExpr{Value: "hello"},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call the function
+		callExpr := &CallExpr{
+			Callee:    &VariableExpr{name: createIdentifierToken("test", 2)},
+			Paren:     createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+		assertEqual(t, "hello", result, "Return with value")
+	})
+
+	t.Run("Return without value", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Create a function that returns nil
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("test", 1),
+			params: []Token{},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value:   nil,
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call the function
+		callExpr := &CallExpr{
+			Callee:    &VariableExpr{name: createIdentifierToken("test", 2)},
+			Paren:     createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+		assertEqual(t, nil, result, "Return without value")
+	})
+
+	t.Run("Function without return returns nil", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Create a function with no return statement
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("test", 1),
+			params: []Token{},
+			body: []Stmt{
+				&ExpressionStmt{
+					expression: &LiteralExpr{Value: 42.0},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call the function
+		callExpr := &CallExpr{
+			Callee:    &VariableExpr{name: createIdentifierToken("test", 2)},
+			Paren:     createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+		assertEqual(t, nil, result, "Function without return")
+	})
+}
+
+func TestFunctionCallErrors(t *testing.T) {
+	t.Run("Call non-callable value", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Define a variable that's not a function
+		varStmt := &VarStmt{
+			name:        createIdentifierToken("x", 1),
+			initializer: &LiteralExpr{Value: 42.0},
+		}
+		executeStatement(t, interpreter, varStmt)
+
+		// Try to call it
+		callExpr := &CallExpr{
+			Callee:    &VariableExpr{name: createIdentifierToken("x", 2)},
+			Paren:     createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{},
+		}
+
+		err := evaluateExpressionWithError(t, interpreter, callExpr)
+		runtimeErr, ok := err.(RuntimeError)
+		if !ok {
+			t.Fatalf("Expected RuntimeError, got %T", err)
+		}
+		if runtimeErr.message != "Can only call functions and classes." {
+			t.Errorf("Expected 'Can only call functions and classes.', got '%s'", runtimeErr.message)
+		}
+	})
+
+	t.Run("Call function with wrong number of arguments - too few", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Define a function that requires 2 arguments
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("add", 1),
+			params: []Token{
+				createIdentifierToken("a", 1),
+				createIdentifierToken("b", 1),
+			},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value: &BinaryExpr{
+						Left:     &VariableExpr{name: createIdentifierToken("a", 1)},
+						Operator: createOperatorToken(PLUS, 1),
+						Right:    &VariableExpr{name: createIdentifierToken("b", 1)},
+					},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call with only 1 argument
+		callExpr := &CallExpr{
+			Callee:    &VariableExpr{name: createIdentifierToken("add", 2)},
+			Paren:     createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{&LiteralExpr{Value: 1.0}},
+		}
+
+		err := evaluateExpressionWithError(t, interpreter, callExpr)
+		runtimeErr, ok := err.(RuntimeError)
+		if !ok {
+			t.Fatalf("Expected RuntimeError, got %T", err)
+		}
+		if runtimeErr.message != "Expected 2 arguments but got 1" {
+			t.Errorf("Expected 'Expected 2 arguments but got 1', got '%s'", runtimeErr.message)
+		}
+	})
+
+	t.Run("Call function with wrong number of arguments - too many", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Define a function that requires 1 argument
+		funcStmt := &FunctionStmt{
+			name:   createIdentifierToken("double", 1),
+			params: []Token{createIdentifierToken("x", 1)},
+			body: []Stmt{
+				&ReturnStmt{
+					keyword: createKeywordToken(RETURN, 1),
+					value: &BinaryExpr{
+						Left:     &VariableExpr{name: createIdentifierToken("x", 1)},
+						Operator: createOperatorToken(STAR, 1),
+						Right:    &LiteralExpr{Value: 2.0},
+					},
+				},
+			},
+		}
+		executeStatement(t, interpreter, funcStmt)
+
+		// Call with 2 arguments
+		callExpr := &CallExpr{
+			Callee: &VariableExpr{name: createIdentifierToken("double", 2)},
+			Paren:  createOperatorToken(RIGHT_PAREN, 2),
+			Arguments: []Expr{
+				&LiteralExpr{Value: 5.0},
+				&LiteralExpr{Value: 10.0},
+			},
+		}
+
+		err := evaluateExpressionWithError(t, interpreter, callExpr)
+		runtimeErr, ok := err.(RuntimeError)
+		if !ok {
+			t.Fatalf("Expected RuntimeError, got %T", err)
+		}
+		if runtimeErr.message != "Expected 1 arguments but got 2" {
+			t.Errorf("Expected 'Expected 1 arguments but got 2', got '%s'", runtimeErr.message)
+		}
+	})
+}
+
+func TestBuiltinFunction(t *testing.T) {
+	t.Run("Call built-in clock function", func(t *testing.T) {
+		interpreter := createTestInterpreter()
+
+		// Call clock() - it should return a number
+		callExpr := &CallExpr{
+			Callee:    &VariableExpr{name: createIdentifierToken("clock", 1)},
+			Paren:     createOperatorToken(RIGHT_PAREN, 1),
+			Arguments: []Expr{},
+		}
+
+		result := evaluateExpression(t, interpreter, callExpr)
+
+		// Verify it returns a number (float64)
+		_, ok := result.(float64)
+		if !ok {
+			t.Errorf("Expected float64 result from clock(), got %T", result)
 		}
 	})
 }

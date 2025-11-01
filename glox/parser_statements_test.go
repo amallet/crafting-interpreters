@@ -307,3 +307,136 @@ func TestParserBlockStatement(t *testing.T) {
 		t.Errorf("Expected variable name 'x' in print, got %s", variableExpr.name.lexeme)
 	}
 }
+
+func TestParserFunctionDeclaration(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		expectedName   string
+		expectedParams int
+		expectedBody   int
+	}{
+		{
+			name:           "Function with no parameters",
+			input:          "fun foo() { return 1; }",
+			expectedName:   "foo",
+			expectedParams: 0,
+			expectedBody:   1,
+		},
+		{
+			name:           "Function with one parameter",
+			input:          "fun greet(name) { print name; }",
+			expectedName:   "greet",
+			expectedParams: 1,
+			expectedBody:   1,
+		},
+		{
+			name:           "Function with multiple parameters",
+			input:          "fun add(a, b) { return a + b; }",
+			expectedName:   "add",
+			expectedParams: 2,
+			expectedBody:   1,
+		},
+		{
+			name:           "Function with three parameters",
+			input:          "fun triple(a, b, c) { return a + b + c; }",
+			expectedName:   "triple",
+			expectedParams: 3,
+			expectedBody:   1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lox := NewTestGLox()
+			scanner := NewScanner(lox, test.input)
+			tokens := scanner.scanTokens()
+
+			parser := NewParser(lox, tokens)
+			statements, err := parser.parse()
+
+			if err != nil {
+				t.Errorf("Parse error for %s: %v", test.input, err)
+				return
+			}
+
+			if len(statements) != 1 {
+				t.Errorf("Expected 1 statement, got %d", len(statements))
+				return
+			}
+
+			funcStmt, ok := statements[0].(*FunctionStmt)
+			if !ok {
+				t.Errorf("Expected FunctionStmt, got %T", statements[0])
+				return
+			}
+
+			if funcStmt.name.lexeme != test.expectedName {
+				t.Errorf("Expected function name %s, got %s", test.expectedName, funcStmt.name.lexeme)
+			}
+
+			if len(funcStmt.params) != test.expectedParams {
+				t.Errorf("Expected %d parameters, got %d", test.expectedParams, len(funcStmt.params))
+			}
+
+			if len(funcStmt.body) != test.expectedBody {
+				t.Errorf("Expected %d statements in body, got %d", test.expectedBody, len(funcStmt.body))
+			}
+		})
+	}
+}
+
+func TestParserReturnStatement(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		hasValue bool
+	}{
+		{
+			name:     "Return with value",
+			input:    "return 42;",
+			hasValue: true,
+		},
+		{
+			name:     "Return without value",
+			input:    "return;",
+			hasValue: false,
+		},
+		{
+			name:     "Return with expression",
+			input:    "return x + 1;",
+			hasValue: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lox := NewTestGLox()
+			scanner := NewScanner(lox, test.input)
+			tokens := scanner.scanTokens()
+
+			parser := NewParser(lox, tokens)
+			statements, err := parser.parse()
+
+			if err != nil {
+				t.Errorf("Parse error for %s: %v", test.input, err)
+				return
+			}
+
+			if len(statements) != 1 {
+				t.Errorf("Expected 1 statement, got %d", len(statements))
+				return
+			}
+
+			returnStmt, ok := statements[0].(*ReturnStmt)
+			if !ok {
+				t.Errorf("Expected ReturnStmt, got %T", statements[0])
+				return
+			}
+
+			if (returnStmt.value != nil) != test.hasValue {
+				t.Errorf("Expected hasValue %v, got %v", test.hasValue, returnStmt.value != nil)
+			}
+		})
+	}
+}

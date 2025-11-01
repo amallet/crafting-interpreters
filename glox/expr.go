@@ -8,6 +8,7 @@ type Expr interface {
 // ExprVisitor defines the visitor interface for expressions
 type ExprVisitor interface {
 	VisitAssignExpr(expr *AssignExpr) (any, error)
+	VisitCallExpr(expr *CallExpr) (any, error)
 	VisitBinaryExpr(expr *BinaryExpr) (any, error)
 	VisitGroupingExpr(expr *GroupingExpr) (any, error)
 	VisitLiteralExpr(expr *LiteralExpr) (any, error)
@@ -35,6 +36,17 @@ type BinaryExpr struct {
 
 func (e *BinaryExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitBinaryExpr(e)
+}
+
+// CallExpr represents a call expression
+type CallExpr struct {
+	Callee Expr
+	Paren Token 
+	Arguments []Expr
+}
+
+func (c *CallExpr) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitCallExpr(c)
 }
 
 // GroupingExpr represents a parenthesized expression: (expression)
