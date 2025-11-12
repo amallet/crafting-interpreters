@@ -44,9 +44,9 @@ go test -run TestParserEmptyInput
 
 ## Architecture
 
-### Three-Stage Pipeline
+### Four-Stage Pipeline
 
-GLox processes Lox source code through three distinct stages:
+GLox processes Lox source code through four distinct stages:
 
 1. **Scanner (scanner.go)** - Lexical analysis
    - Converts source text into tokens
@@ -61,10 +61,21 @@ GLox processes Lox source code through three distinct stages:
    - **For loops are desugared**: Parser transforms `for` loops into `while` loops with initialization blocks (see parser.go:214-290)
    - Error recovery via `synchronize()` method for better REPL experience
 
-3. **Interpreter (interpreter.go)** - Execution
+3. **Resolver (resolver.go)** - Static analysis
+   - Performs semantic analysis before interpretation
+   - Resolves variable references to their correct scopes (local vs global)
+   - Stores resolution information (scope distance) in interpreter's `locals` map
+   - Detects static errors:
+     - Reading a local variable in its own initializer
+     - Returning from top-level code (outside functions)
+     - Variable redeclaration in the same local scope
+   - Enables efficient variable lookup during interpretation
+
+4. **Interpreter (interpreter.go)** - Execution
    - Tree-walk interpreter using visitor pattern
    - Evaluates AST nodes and executes statements
    - Manages runtime state through Environment chains
+   - Uses resolver's scope distance information for efficient variable access
 
 ### AST Node Types
 
@@ -84,7 +95,7 @@ GLox processes Lox source code through three distinct stages:
 - `VarStmt` - Variable declarations with optional initializer
 - `BlockStmt` - Scoped blocks containing multiple statements
 - `IfStmt` - Conditional branching with optional else
-- `WhileStmt` - Loop statements
+- `WhileStmt` + `IfStmt` - Loop statements
 - `FunctionStmt` - Function declarations with name, parameters, and body
 - `ReturnStmt` - Return statements (with optional return value)
 
@@ -105,6 +116,19 @@ The `Environment` type implements lexical scoping through a chain of environment
 - Variable assignment searches current scope first, then parent scopes
 - Block statements create new child environments (see interpreter.go:117-133)
 - Function calls create new child environments with parameter bindings
+
+### Variable Resolution (resolver.go)
+
+The `Resolver` performs static analysis to resolve variable references:
+- Traverses the AST before interpretation to determine variable scope distances
+- Stores resolution information in interpreter's `locals` map (maps expressions to scope distances)
+- Enables efficient variable lookup: local variables use `getAt(distance, name)` instead of walking the environment chain
+- Detects static semantic errors:
+  - **Self-reference in initializer**: `var a = a;` - can't read local variable in its own initializer
+  - **Top-level return**: `return value;` at top level - can't return from top-level code
+  - **Variable redeclaration**: `var a = 1; var a = 2;` in same scope - already a variable with this name
+- Tracks function context to validate return statements are only inside functions
+- Manages scope stack to track variable declaration/definition status (prevents reading uninitialized variables)
 
 ### Function Calling (lox_callable.go, lox_function.go)
 
@@ -142,6 +166,14 @@ The `LoxRuntime` interface abstracts error reporting to allow:
 - Parser synchronizes to next statement boundary on error
 - Allows REPL to continue after syntax errors
 
+**Resolver errors**: Static semantic errors detected during resolution phase
+- Reported via `parseError()` with line numbers and token context
+- Errors include:
+  - Reading local variable in its own initializer
+  - Returning from top-level code
+  - Variable redeclaration in same scope
+- Execution stops if resolver errors are detected
+
 **Runtime errors**: Wrapped in `RuntimeError` type with token location
 - Type checking failures (e.g., adding string to number)
 - Undefined variable access
@@ -154,6 +186,7 @@ glox/
 ├── glox.go              # Main entry point and REPL
 ├── scanner.go           # Lexical analysis (tokenizer)
 ├── parser.go            # Syntax analysis (parser)
+├── resolver.go          # Static analysis and variable resolution
 ├── interpreter.go       # Tree-walk interpreter
 ├── expr.go              # Expression AST nodes
 ├── stmt.go              # Statement AST nodes
@@ -180,6 +213,7 @@ Tests are organized by component:
 - `parser_precedence_test.go` - Operator precedence verification
 - `parser_errors_test.go` - Error handling and recovery
 - `parser_for_loops_test.go` - For loop desugaring
+- `resolver_test.go` - Variable resolution, static error detection
 - `interpreter_test.go` - Expression evaluation, statement execution
 - `environment_test.go` - Variable scoping behavior
 - `integration_test.go` - End-to-end program execution
@@ -205,6 +239,8 @@ Tests are organized by component:
 - Function calls create new environments chained to the captured closure (enables closure behavior)
 - Return values are propagated using `ReturnValue` error wrapper to unwind the call stack
 - Maximum 255 parameters and 255 arguments are enforced by the parser
+- Variable resolution happens before interpretation for efficient lookup and static error detection
+- Resolver stores scope distances in interpreter's `locals` map for O(1) local variable access
 - Go interfaces are used to implement the visitor pattern (vs. classes in Java)
 - Go's type system is leveraged for AST node definitions
 - Error handling follows Go conventions (returning errors vs. throwing exceptions)

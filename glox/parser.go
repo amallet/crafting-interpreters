@@ -9,8 +9,8 @@ import (
 //
 // program        → declaration* EOF;
 // declaration    → funDecl | varDecl | statement ;
-// funDecl        → "fun" function; 
-// function       → IDENTIFIER "(" parameters? ")" block ; 
+// funDecl        → "fun" function;
+// function       → IDENTIFIER "(" parameters? ")" block ;
 // parameters     → IDENTIFIER ("," IDENTIFIER)* ;
 // varDecl        → "var" IDENTIFIER ("=" expression)? ";" ;
 // statement	  → exprStmt | ifStmt | printStmt | whileStmt | forStmt | returnStmt | block;
@@ -31,9 +31,9 @@ import (
 // comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )*;
 // term           → factor ( ( "-" | "+" ) factor )*;
 // factor         → unary ( ( "/" | "*" ) unary )*;
-// unary          → ( "!" | "-" ) unary | | call 
-// call           → primary ( "(" arguments? ")" )* ; 
-// arguments      → expression ( "," expression )* ; 
+// unary          → ( "!" | "-" ) unary | | call
+// call           → primary ( "(" arguments? ")" )* ;
+// arguments      → expression ( "," expression )* ;
 // primary        → "true" | "false" | "nil" | NUMBER | STRING | "(" expression ")" | IDENTIFIER;
 //
 // The grammar follows operator precedence with the following precedence levels
@@ -77,9 +77,9 @@ func (p *Parser) declaration() (Stmt, error) {
 	var stmt Stmt
 	var err error
 
-	if p.match(FUN) {
+	if p.matches(FUN) {
 		stmt, err = p.function("function")
-	} else if p.match(VAR) {
+	} else if p.matches(VAR) {
 		stmt, err = p.varDeclaration()
 	} else {
 		stmt, err = p.statement()
@@ -95,69 +95,71 @@ func (p *Parser) declaration() (Stmt, error) {
 	return stmt, nil
 }
 
-// function       → IDENTIFIER "(" parameters? ")" block ; 
+// function       → IDENTIFIER "(" parameters? ")" block ;
 // parameters     → IDENTIFIER ("," IDENTIFIER)* ;
 func (p *Parser) function(kind string) (Stmt, error) {
-	var err error 
-	var fnName Token 
+	var err error
+	var fnName Token
 
-	// Parse function name 
-	if fnName, err = p.consume(IDENTIFIER, "Expect " + kind + " name."); err != nil {
-		return nil, err 
+	// Parse function name
+	if fnName, err = p.consume(IDENTIFIER, "Expect "+kind+" name."); err != nil {
+		return nil, err
 	}
 
-	// Parse function params 
-	if _, err = p.consume(LEFT_PAREN, "Expect '(' after " + kind + " name."); err != nil {
-		return nil, err 
+	// Parse function params
+	if _, err = p.consume(LEFT_PAREN, "Expect '(' after "+kind+" name."); err != nil {
+		return nil, err
 	}
-	
+
 	fnParams := make([]Token, 0)
 	if !p.nextTokenTypeIs(RIGHT_PAREN) {
-		var parameter Token 
+		var parameter Token
 		if parameter, err = p.consume(IDENTIFIER, "Expect parameter name."); err != nil {
-			return nil, err 
+			return nil, err
 		}
 		fnParams = append(fnParams, parameter)
-		
-		for p.match(COMMA) {
+
+		for p.matches(COMMA) {
 			if len(fnParams) >= 255 {
 				return nil, p.constructError(p.peek(), "Can't have more than 255 parameters.")
 			}
 			if parameter, err = p.consume(IDENTIFIER, "Expect parameter name."); err != nil {
-				return nil, err 
+				return nil, err
 			}
 			fnParams = append(fnParams, parameter)
-		} 
+		}
 
 	}
 	if _, err = p.consume(RIGHT_PAREN, "Expect ')' after parameters. "); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
-	// Parse function body 
-	if _, err = p.consume(LEFT_BRACE, "Expect '{' before " + kind + " body."); err != nil {
-		return nil, err 
+	// Parse function body
+	if _, err = p.consume(LEFT_BRACE, "Expect '{' before "+kind+" body."); err != nil {
+		return nil, err
 	}
 
 	var fnBody []Stmt
 	if fnBody, err = p.blockStatement(); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
-	return &FunctionStmt{fnName, fnParams, fnBody}, nil 
+	return &FunctionStmt{fnName, fnParams, fnBody}, nil
 }
 
 // varDecl → "var" IDENTIFIER ("=" expression)? ";" ;
 func (p *Parser) varDeclaration() (Stmt, error) {
-	name, err := p.consume(IDENTIFIER, "Expect variable name")
+	// 'var' keyword has already been consumed, so start by trying to parse
+	// the identifier ie the variable name
+	varName, err := p.consume(IDENTIFIER, "Expect variable name")
 	if err != nil {
 		return nil, err
 	}
 
 	// Parse initialization expression, if there is one
-	var init_expression Expr = nil
-	if p.match(EQUAL) {
-		if init_expression, err = p.expression(); err != nil {
+	var initExpression Expr = nil
+	if p.matches(EQUAL) {
+		if initExpression, err = p.expression(); err != nil {
 			return nil, err
 		}
 	}
@@ -166,32 +168,32 @@ func (p *Parser) varDeclaration() (Stmt, error) {
 		return nil, err
 	}
 
-	return &VarStmt{name, init_expression}, nil
+	return &VarStmt{varName, initExpression}, nil
 }
 
 // statemenent → printStmt | ifStmt | exprStmt | block
 func (p *Parser) statement() (Stmt, error) {
-	if p.match(IF) {
+	if p.matches(IF) {
 		return p.ifStatement()
 	}
 
-	if p.match(FOR) {
+	if p.matches(FOR) {
 		return p.forStatement()
 	}
 
-	if p.match(WHILE) {
+	if p.matches(WHILE) {
 		return p.whileStatement()
 	}
 
-	if p.match(PRINT) {
+	if p.matches(PRINT) {
 		return p.printStatement()
 	}
 
-	if p.match(RETURN) {
+	if p.matches(RETURN) {
 		return p.returnStatement()
 	}
 
-	if p.match(LEFT_BRACE) {
+	if p.matches(LEFT_BRACE) {
 		if statements, err := p.blockStatement(); err != nil {
 			return nil, err
 		} else {
@@ -202,8 +204,11 @@ func (p *Parser) statement() (Stmt, error) {
 	return p.expressionStatement()
 }
 
-// ifStmt → "if" expression ("else" expression)?;
+// ifStmt → "if" "(" expression ")" statement ( "else" statement )? ;
 func (p *Parser) ifStatement() (Stmt, error) {
+
+	// 'if' keyword has already been consumed, so start parsing what's supposed to come
+	// next
 	var err error
 	if _, err := p.consume(LEFT_PAREN, "Expect '(' after 'if"); err != nil {
 		return nil, err
@@ -223,7 +228,7 @@ func (p *Parser) ifStatement() (Stmt, error) {
 		return nil, err
 	}
 	var elseBranch Stmt = nil
-	if p.match(ELSE) {
+	if p.matches(ELSE) {
 		if elseBranch, err = p.statement(); err != nil {
 			return nil, err
 		}
@@ -234,6 +239,9 @@ func (p *Parser) ifStatement() (Stmt, error) {
 
 // printStmt → "print" expression ";"
 func (p *Parser) printStatement() (Stmt, error) {
+
+	// 'print' keyword has already been consumed, so start parsing what's supposed to come
+	// next
 	expr, err := p.expression()
 	if err != nil {
 		return nil, err
@@ -252,6 +260,8 @@ func (p *Parser) whileStatement() (Stmt, error) {
 	var stmt Stmt
 	var err error
 
+	// 'while' keyword has already been consumed, so start parsing what's supposed to come
+	// next
 	if _, err = p.consume(LEFT_PAREN, "Expect '(' after while condition"); err != nil {
 		return nil, err
 	}
@@ -271,28 +281,28 @@ func (p *Parser) whileStatement() (Stmt, error) {
 	return &WhileStmt{condition, stmt}, nil
 }
 
-// forStmt → "for" "(" ( varDecl | exprStmt | ";")
-//
-//	expression? ";"
-//	expression? ";" ")" statement ;
+// forStmt → "for" "(" ( varDecl | exprStmt | ";") expression? ";" expression? ";" ")" statement ;
 func (p *Parser) forStatement() (Stmt, error) {
+
+	// 'for' statements are desugared by being parsed into a combination of an initialization
+	// expression and a 'while' statement that checks the loop condition, with the loop 
+	// variable update put into the body of the 'while' statement
 	var loopVarInit Stmt = nil
 	var loopCondition Expr
 	var loopVarUpdate Expr
 	var body Stmt
 	var err error
 
-	// 'for' statements are parsed into a combination of an initialization
-	// expression and a 'while' statement that checks the loop condition,
-	// with the loop variable update put into the body of the 'while' statement
+	// 'for' keyword has already been consumed, so start parsing what's supposed to come
+	// next
 	if _, err = p.consume(LEFT_PAREN, "Expect '(' after 'for'"); err != nil {
 		return nil, err
 	}
 
 	// Parse initializer
-	if p.match(SEMICOLON) {
+	if p.matches(SEMICOLON) {
 		loopVarInit = nil
-	} else if p.match(VAR) {
+	} else if p.matches(VAR) {
 		if loopVarInit, err = p.varDeclaration(); err != nil {
 			return nil, err
 		}
@@ -355,23 +365,25 @@ func (p *Parser) forStatement() (Stmt, error) {
 
 // return → "return" expression? ";" ;
 func (p *Parser) returnStatement() (Stmt, error) {
+
+	// 'return' keyword has already been consumed, so start parsing what's supposed to come
+	// next
 	keyword := p.previous()
 
 	var value Expr = nil
-	var err error 
-
-	if !p.nextTokenTypeIs(SEMICOLON) {
+	var err error
+	if !p.nextTokenTypeIs(SEMICOLON) { // returning a value
 		if value, err = p.expression(); err != nil {
-			return nil, err 
+			return nil, err
 		}
 	}
 
 	if _, err := p.consume(SEMICOLON, "Expect ';' after return value."); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
-	return &ReturnStmt{keyword, value}, nil 
-} 
+	return &ReturnStmt{keyword, value}, nil
+}
 
 // block → "{" declaration* "}";
 func (p *Parser) blockStatement() ([]Stmt, error) {
@@ -417,7 +429,7 @@ func (p *Parser) assignmentExpr() (Expr, error) {
 	}
 
 	// Handle assignment case
-	if p.match(EQUAL) {
+	if p.matches(EQUAL) {
 		equals := p.previous()
 		rvalue, err := p.assignmentExpr()
 		if err != nil {
@@ -425,7 +437,7 @@ func (p *Parser) assignmentExpr() (Expr, error) {
 		}
 
 		if lvalue, ok := lhs.(*VariableExpr); ok { // LHS of assignment must be a variable
-			name := lvalue.name
+			name := lvalue.variable
 			return &AssignExpr{name, rvalue}, nil
 		} else {
 			return nil, p.constructError(equals, "Invalid assignment target")
@@ -443,7 +455,7 @@ func (p *Parser) logicalOr() (Expr, error) {
 		return nil, err
 	}
 
-	for p.match(OR) {
+	for p.matches(OR) {
 		operator := p.previous()
 		if right, err := p.logicalAnd(); err != nil {
 			return nil, err
@@ -463,7 +475,7 @@ func (p *Parser) logicalAnd() (Expr, error) {
 		return nil, err
 	}
 
-	for p.match(AND) {
+	for p.matches(AND) {
 		operator := p.previous()
 		if right, err := p.equalityExpr(); err != nil {
 			return nil, err
@@ -482,7 +494,7 @@ func (p *Parser) equalityExpr() (Expr, error) {
 		return nil, err
 	}
 
-	for p.match(BANG_EQUAL, EQUAL_EQUAL) {
+	for p.matches(BANG_EQUAL, EQUAL_EQUAL) {
 		operator := p.previous()
 		right, err := p.comparison()
 		if err != nil {
@@ -501,7 +513,7 @@ func (p *Parser) comparison() (Expr, error) {
 		return nil, err
 	}
 
-	for p.match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL) {
+	for p.matches(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL) {
 		operator := p.previous()
 		right, err := p.term()
 		if err != nil {
@@ -520,7 +532,7 @@ func (p *Parser) term() (Expr, error) {
 		return nil, err
 	}
 
-	for p.match(MINUS, PLUS) {
+	for p.matches(MINUS, PLUS) {
 		operator := p.previous()
 		right, err := p.factor()
 		if err != nil {
@@ -539,7 +551,7 @@ func (p *Parser) factor() (Expr, error) {
 		return nil, err
 	}
 
-	for p.match(SLASH, STAR) {
+	for p.matches(SLASH, STAR) {
 		operator := p.previous()
 		right, err := p.unary()
 		if err != nil {
@@ -551,97 +563,98 @@ func (p *Parser) factor() (Expr, error) {
 	return expr, nil
 }
 
-// unary → ( "!" | "-" ) unary | primary;
+// unary → ( "!" | "-" ) unary || call
 func (p *Parser) unary() (Expr, error) {
-	if p.match(BANG, MINUS) {
+	if p.matches(BANG, MINUS) {
 		operator := p.previous()
 		right, err := p.unary()
 		if err != nil {
 			return nil, err
 		}
 		return &UnaryExpr{operator, right}, nil
+	} else {
+		return p.call()
 	}
-
-	return p.call()
 }
 
-// call → primary ( "(" arguments? ")" )* ; 
+// call → primary ( "(" arguments? ")" )* ;
 func (p *Parser) call() (Expr, error) {
 	var expr Expr
 	var err error
-	
+
 	if expr, err = p.primary(); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
 	for {
-		if p.match(LEFT_PAREN) {
-			if expr, err = p.finishCall(expr); err != nil {
-				return nil, err 
+		if p.matches(LEFT_PAREN) {
+			if expr, err = p.callArguments(expr); err != nil {
+				return nil, err
 			}
 		} else {
-			break 
+			break
 		}
 	}
 
 	return expr, nil
 }
 
-// arguments → expression ( "," expression )* ; 
-func (p *Parser) finishCall(callee Expr) (Expr, error) {
-	var err error 
+// arguments → expression ( "," expression )* ;
+func (p *Parser) callArguments(callee Expr) (Expr, error) {
+	var err error
 	arguments := make([]Expr, 0)
 
-	if !p.nextTokenTypeIs(RIGHT_PAREN) {
-		var expr Expr 
-
+	if !p.nextTokenTypeIs(RIGHT_PAREN) { // check for arguments
+		// Parse first argument 
+		var expr Expr
 		if expr, err = p.expression(); err != nil {
-			return nil, err 
-		} 
+			return nil, err
+		}
 		arguments = append(arguments, expr)
-		
-		for p.match(COMMA) {
+
+		// Parse all the other arguments, if any
+		for p.matches(COMMA) {
 			if len(arguments) >= 255 {
 				return nil, p.constructError(p.peek(), "Can't have more than 255 arguments.")
 			}
 			if expr, err = p.expression(); err != nil {
-				return nil, err 
-			} 
-			arguments = append(arguments, expr)	
+				return nil, err
+			}
+			arguments = append(arguments, expr)
 		}
 	}
 
 	var paren Token
 	if paren, err = p.consume(RIGHT_PAREN, "Expect ')' after arguments."); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
-	return &CallExpr{callee, paren, arguments}, nil 
+	return &CallExpr{callee, paren, arguments}, nil
 }
 
 // primary → "true" | "false" | "nil" | NUMBER | STRING |"(" expression ")" | IDENTIFIER;
 func (p *Parser) primary() (Expr, error) {
-	if p.match(TRUE) {
+	if p.matches(TRUE) {
 		return &LiteralExpr{true}, nil
 	}
 
-	if p.match(FALSE) {
+	if p.matches(FALSE) {
 		return &LiteralExpr{false}, nil
 	}
 
-	if p.match(NIL) {
+	if p.matches(NIL) {
 		return &LiteralExpr{nil}, nil
 	}
 
-	if p.match(NUMBER, STRING) {
+	if p.matches(NUMBER, STRING) {
 		return &LiteralExpr{p.previous().literal}, nil
 	}
 
-	if p.match(IDENTIFIER) {
+	if p.matches(IDENTIFIER) {
 		return &VariableExpr{p.previous()}, nil
 	}
 
-	if p.match(LEFT_PAREN) {
+	if p.matches(LEFT_PAREN) {
 		expr, err := p.expression()
 		if err != nil {
 			return nil, err
@@ -655,7 +668,7 @@ func (p *Parser) primary() (Expr, error) {
 	return nil, p.constructError(p.peek(), "Expected expression")
 }
 
-func (p *Parser) match(tokenTypes ...TokenType) bool {
+func (p *Parser) matches(tokenTypes ...TokenType) bool {
 	for _, tokenType := range tokenTypes {
 		if p.nextTokenTypeIs(tokenType) {
 			p.advance()

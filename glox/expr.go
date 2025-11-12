@@ -19,8 +19,8 @@ type ExprVisitor interface {
 
 // AssignExpr represents an assignment expression
 type AssignExpr struct {
-	name  Token
-	value Expr
+	variable Token
+	value    Expr
 }
 
 func (a *AssignExpr) Accept(visitor ExprVisitor) (any, error) {
@@ -40,8 +40,8 @@ func (e *BinaryExpr) Accept(visitor ExprVisitor) (any, error) {
 
 // CallExpr represents a call expression
 type CallExpr struct {
-	Callee Expr
-	Paren Token 
+	Callee    Expr
+	Paren     Token
 	Arguments []Expr
 }
 
@@ -90,7 +90,7 @@ func (e *UnaryExpr) Accept(visitor ExprVisitor) (any, error) {
 
 // VariableExpr represents a variable expression: <variable name>
 type VariableExpr struct {
-	name Token
+	variable Token
 }
 
 func (v *VariableExpr) Accept(visitor ExprVisitor) (any, error) {

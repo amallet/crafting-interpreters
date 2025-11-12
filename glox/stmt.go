@@ -6,11 +6,11 @@ type Stmt interface {
 
 type StmtVisitor interface {
 	VisitExpressionStmt(stmt *ExpressionStmt) error
-	VisitFunctionStmt(stmt *FunctionStmt) error 
+	VisitFunctionStmt(stmt *FunctionStmt) error
 	VisitIfStmt(stmt *IfStmt) error
 	VisitPrintStmt(stmt *PrintStmt) error
 	VisitWhileStmt(stmt *WhileStmt) error
-	VisitReturnStmt(stmt *ReturnStmt) error 
+	VisitReturnStmt(stmt *ReturnStmt) error
 	VisitBlockStmt(stmt *BlockStmt) error
 	VisitVarStmt(stmt *VarStmt) error
 }
@@ -29,10 +29,10 @@ type IfStmt struct {
 	elseBranch Stmt
 }
 
-type FunctionStmt struct { 
-	name Token
-	params []Token
-	body []Stmt 
+type FunctionStmt struct {
+	functionName Token
+	params       []Token
+	body         []Stmt
 }
 
 func (f *FunctionStmt) Accept(visitor StmtVisitor) error {
@@ -53,7 +53,7 @@ func (s *PrintStmt) Accept(visitor StmtVisitor) error {
 
 type WhileStmt struct {
 	condition Expr
-	statement Stmt
+	body      Stmt
 }
 
 func (w *WhileStmt) Accept(visitor StmtVisitor) error {
@@ -61,8 +61,8 @@ func (w *WhileStmt) Accept(visitor StmtVisitor) error {
 }
 
 type ReturnStmt struct {
-	keyword Token
-	value Expr 
+	keyword     Token
+	returnValue Expr
 }
 
 func (r *ReturnStmt) Accept(visitor StmtVisitor) error {
@@ -78,7 +78,7 @@ func (b *BlockStmt) Accept(visitor StmtVisitor) error {
 }
 
 type VarStmt struct {
-	name        Token
+	variable    Token
 	initializer Expr
 }
 

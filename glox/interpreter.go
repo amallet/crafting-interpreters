@@ -7,18 +7,20 @@ import (
 
 // The Interpreter object interprets/evaluates the ASTs produced by the Parser
 type Interpreter struct {
-	lox LoxRuntime
+	lox     LoxRuntime
 	globals *Environment
-	env *Environment
+	env     *Environment
+	locals  map[Expr]int
 }
 
 func NewInterpreter(lox LoxRuntime) *Interpreter {
 	globals := NewEnvironment(nil)
 	globals.defineVarValue("clock", clockFn{})
 	return &Interpreter{
-		lox: lox,
+		lox:     lox,
 		globals: globals,
-		env: globals,
+		env:     globals,
+		locals:  make(map[Expr]int),
 	}
 }
 
@@ -53,6 +55,11 @@ func (i *Interpreter) evaluate(e Expr) (any, error) {
 	return e.Accept(i)
 }
 
+func (i *Interpreter) resolve(expr Expr, depth int) {
+	//fmt.Printf("Storing %v @ %v at depth %d\n", expr, &expr, depth)
+	i.locals[expr] = depth
+}
+
 func (i *Interpreter) VisitVarStmt(stmt *VarStmt) error {
 	var value any
 	var err error
@@ -66,7 +73,7 @@ func (i *Interpreter) VisitVarStmt(stmt *VarStmt) error {
 	}
 
 	// Store the variable name and associated value
-	i.env.defineVarValue(stmt.name.lexeme, value)
+	i.env.defineVarValue(stmt.variable.lexeme, value)
 	return nil
 }
 
@@ -75,14 +82,13 @@ func (i *Interpreter) VisitExpressionStmt(stmt *ExpressionStmt) error {
 	return err
 }
 
-
 func (i *Interpreter) VisitFunctionStmt(stmt *FunctionStmt) error {
 	loxFn := &LoxFunction{stmt, i.env}
-	i.env.defineVarValue(stmt.name.lexeme, loxFn)
-	return nil 
+	i.env.defineVarValue(stmt.functionName.lexeme, loxFn)
+	return nil
 }
 
-// Execute print statement 
+// Execute print statement
 func (i *Interpreter) VisitPrintStmt(stmt *PrintStmt) error {
 	value, err := i.evaluate(stmt.expression)
 	if err != nil {
@@ -94,26 +100,26 @@ func (i *Interpreter) VisitPrintStmt(stmt *PrintStmt) error {
 
 // Execute return statement
 func (i *Interpreter) VisitReturnStmt(stmt *ReturnStmt) error {
-	var value any 
+	var value any
 	var err error
-	
-	if stmt.value != nil {
-		// Evaluate the expression to be returned, and then wrap it in a 
+
+	if stmt.returnValue != nil {
+		// Evaluate the expression to be returned, and then wrap it in a
 		// special sentinel type that conforms to the Error() interface, but
 		// actually wraps the return value. This is used to short-cut execution
-		// and unwind the call stack. Not great, but it's what we've got. 
-		if value, err = i.evaluate(stmt.value); err != nil {
-			return err 
+		// and unwind the call stack. Not great, but it's what we've got.
+		if value, err = i.evaluate(stmt.returnValue); err != nil {
+			return err
 		} else {
-			// 
 			return &ReturnValue{value}
 		}
 	}
 
-	return nil 
+	// Return without value - still need to wrap in ReturnValue to stop execution
+	return &ReturnValue{nil}
 }
 
-// Execute 'if' statement 
+// Execute 'if' statement
 func (i *Interpreter) VisitIfStmt(stmt *IfStmt) error {
 	var err error
 	var condition any
@@ -137,7 +143,7 @@ func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
 			return err
 		}
 		if isTruthy(condition) {
-			if err = i.execute(stmt.statement); err != nil {
+			if err = i.execute(stmt.body); err != nil {
 				return err
 			}
 		} else {
@@ -153,7 +159,7 @@ func (i *Interpreter) VisitBlockStmt(stmt *BlockStmt) error {
 	// When interpreting a block, create a new environment to handle
 	// the lexical scope for that block, and use it to evaluate statements
 	// inside the block
-	blockEnv := NewEnvironment(i.env) 
+	blockEnv := NewEnvironment(i.env)
 	return i.executeBlock(stmt.statements, blockEnv)
 }
 
@@ -178,7 +184,14 @@ func (i *Interpreter) VisitAssignExpr(expr *AssignExpr) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = i.env.assignVarValue(expr.name, value); err != nil {
+
+	// If local variable, assign to the right scope
+	if distance, ok := i.locals[expr]; ok {
+		i.env.assignAt(distance, expr.variable, value)
+		return value, nil
+	}
+	// Else, it's a variable in the global scope
+	if err = i.globals.assignVarValue(expr.variable, value); err != nil {
 		return nil, err
 	}
 
@@ -277,35 +290,35 @@ func (i *Interpreter) VisitBinaryExpr(expr *BinaryExpr) (any, error) {
 	return nil, nil
 }
 
-// Evaluate function calls 
+// Evaluate function calls
 func (i *Interpreter) VisitCallExpr(e *CallExpr) (any, error) {
 	var callee any
 	var arguments []any
-	var callable LoxCallable 
-	var err error 
-	
-	// Resolve function being called 
+	var callable LoxCallable
+	var err error
+
+	// Resolve function being called
 	if callee, err = i.evaluate(e.Callee); err != nil {
-		return nil, err 
+		return nil, err
 	}
 
-	// Generate values for all the arguments 
+	// Generate values for all the arguments
 	arguments = make([]any, 0)
 	for _, arg := range e.Arguments {
 		if value, err := i.evaluate(arg); err != nil {
-			return nil, err 
+			return nil, err
 		} else {
-			arguments = append(arguments, value )
+			arguments = append(arguments, value)
 		}
 	}
 
 	// Make actual call to function, if it is callable
-	var ok bool  
+	var ok bool
 	if callable, ok = callee.(LoxCallable); !ok {
 		return nil, RuntimeError{e.Paren, "Can only call functions and classes."}
 	}
 	if callable.arity() != len(arguments) {
-		return nil, RuntimeError{e.Paren, 
+		return nil, RuntimeError{e.Paren,
 			fmt.Sprintf("Expected %d arguments but got %d", callable.arity(), len(arguments))}
 	}
 
@@ -362,10 +375,18 @@ func (i *Interpreter) VisitUnaryExpr(expr *UnaryExpr) (any, error) {
 	return nil, nil
 }
 
-// Evaluate variable 
+// Evaluate variable
 func (i *Interpreter) VisitVariableExpr(expr *VariableExpr) (any, error) {
-	return i.env.getVarValue(expr.name) // Evaluating a variable expression just returns the associated value
+	return i.lookupVariable(expr.variable, expr)
+}
 
+func (i *Interpreter) lookupVariable(name Token, expr Expr) (any, error) {
+	if dist, ok := i.locals[expr]; ok {
+		return i.env.getAt(dist, name.lexeme), nil
+	} else {
+		value, err := i.globals.getVarValue(name)
+		return value, err
+	}
 }
 
 func isTruthy(a any) bool {
@@ -395,6 +416,3 @@ func convertNumberOperands(operator Token, a, b any) (float64, float64, error) {
 func isEqual(a any, b any) bool {
 	return reflect.DeepEqual(a, b)
 }
-
-
-

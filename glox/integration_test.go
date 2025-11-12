@@ -399,9 +399,11 @@ print undefined; // Should cause runtime error
 
 	t.Run("Undefined variable assignment", func(t *testing.T) {
 		program := `
-undefined = "value"; // Should cause runtime error
+undefined = "value"; // Assignment to undefined variable - this should cause a runtime error
 `
 
+		// Assignment to undefined variables should still cause a runtime error
+		// because assignVarValue checks for undefined variables
 		runProgramAndExpectError(t, program, "Undefined variable 'undefined'", "Undefined variable assignment")
 	})
 
@@ -827,6 +829,20 @@ print result;
 		expected := []string{"<nil>"}
 		runProgramAndCheckOutput(t, program, expected, "Function returns nil by default")
 	})
+
+	t.Run("Return without value returns nil", func(t *testing.T) {
+		program := `
+fun earlyReturn() {
+	return;
+	print "bad"; // This should not execute
+}
+var result = earlyReturn();
+print result;
+`
+
+		expected := []string{"<nil>"}
+		runProgramAndCheckOutput(t, program, expected, "Return without value returns nil")
+	})
 }
 
 func TestIntegrationFunctionErrors(t *testing.T) {
@@ -1124,9 +1140,9 @@ func runProgramAndExpectError(t *testing.T, program string, expectedError string
 	n, _ := r.Read(buf)
 	capturedError := string(buf[:n])
 
-	// Check if we got the expected error
-	if !glox.hadRuntimeError {
-		t.Errorf("%s: Expected runtime error but got none", testName)
+	// Check if we got an error (either parse/resolver error or runtime error)
+	if !glox.hadError && !glox.hadRuntimeError {
+		t.Errorf("%s: Expected error but got none", testName)
 		return
 	}
 

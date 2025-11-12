@@ -6,7 +6,7 @@ type Token struct {
 	token_type TokenType
 	lexeme     string // string representation 
 	literal    any // actual value, for numbers and strings
-	line       int
+	line       int // line of code where token was found
 }
 
 func (t Token) String() string {

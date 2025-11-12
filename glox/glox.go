@@ -71,6 +71,12 @@ func (l *GLox) run(source string, in_repl bool) {
 		return 
 	}
 
+	resolver := NewResolver(l, l.interpreter)
+	resolver.resolveStmts(statements)
+	if l.hadError {
+		return 
+	}
+
 	// Interpret the parsed statements
 	results := l.interpreter.interpret(statements)
 

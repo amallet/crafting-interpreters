@@ -44,8 +44,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if varStmt.name.lexeme != "i" {
-			t.Errorf("Expected variable name 'i', got %s", varStmt.name.lexeme)
+		if varStmt.variable.lexeme != "i" {
+			t.Errorf("Expected variable name 'i', got %s", varStmt.variable.lexeme)
 		}
 
 		// Check variable initializer value
@@ -84,8 +84,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if leftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.name.lexeme)
+		if leftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.variable.lexeme)
 		}
 
 		// Check right operand of condition (literal 10)
@@ -100,9 +100,9 @@ func TestParserForLoops(t *testing.T) {
 		}
 
 		// While body should be a block containing the original body and update
-		bodyBlock, ok := whileStmt.statement.(*BlockStmt)
+		bodyBlock, ok := whileStmt.body.(*BlockStmt)
 		if !ok {
-			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.statement)
+			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.body)
 			return
 		}
 
@@ -125,8 +125,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if printVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.name.lexeme)
+		if printVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.variable.lexeme)
 		}
 
 		// Second statement in body should be the update expression: i = i + 1
@@ -142,8 +142,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateAssign.name.lexeme != "i" {
-			t.Errorf("Expected update variable 'i', got %s", updateAssign.name.lexeme)
+		if updateAssign.variable.lexeme != "i" {
+			t.Errorf("Expected update variable 'i', got %s", updateAssign.variable.lexeme)
 		}
 
 		// Check update expression: i + 1
@@ -164,8 +164,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateLeftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.name.lexeme)
+		if updateLeftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.variable.lexeme)
 		}
 
 		// Check right operand of update (literal 1)
@@ -225,8 +225,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if leftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.name.lexeme)
+		if leftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.variable.lexeme)
 		}
 
 		// Check right operand of condition (literal 10)
@@ -241,9 +241,9 @@ func TestParserForLoops(t *testing.T) {
 		}
 
 		// While body should be a block containing the original body and update
-		bodyBlock, ok := whileStmt.statement.(*BlockStmt)
+		bodyBlock, ok := whileStmt.body.(*BlockStmt)
 		if !ok {
-			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.statement)
+			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.body)
 			return
 		}
 
@@ -266,8 +266,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if printVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.name.lexeme)
+		if printVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.variable.lexeme)
 		}
 
 		// Second statement in body should be the update expression: i = i + 1
@@ -283,8 +283,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateAssign.name.lexeme != "i" {
-			t.Errorf("Expected update variable 'i', got %s", updateAssign.name.lexeme)
+		if updateAssign.variable.lexeme != "i" {
+			t.Errorf("Expected update variable 'i', got %s", updateAssign.variable.lexeme)
 		}
 
 		// Check update expression: i + 1
@@ -305,8 +305,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateLeftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.name.lexeme)
+		if updateLeftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.variable.lexeme)
 		}
 
 		// Check right operand of update (literal 1)
@@ -360,8 +360,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if varStmt.name.lexeme != "i" {
-			t.Errorf("Expected variable name 'i', got %s", varStmt.name.lexeme)
+		if varStmt.variable.lexeme != "i" {
+			t.Errorf("Expected variable name 'i', got %s", varStmt.variable.lexeme)
 		}
 
 		// Check variable initializer value
@@ -394,9 +394,9 @@ func TestParserForLoops(t *testing.T) {
 		}
 
 		// While body should be a block containing the original body and update
-		bodyBlock, ok := whileStmt.statement.(*BlockStmt)
+		bodyBlock, ok := whileStmt.body.(*BlockStmt)
 		if !ok {
-			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.statement)
+			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.body)
 			return
 		}
 
@@ -419,8 +419,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if printVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.name.lexeme)
+		if printVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.variable.lexeme)
 		}
 
 		// Second statement in body should be the update expression: i = i + 1
@@ -436,8 +436,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateAssign.name.lexeme != "i" {
-			t.Errorf("Expected update variable 'i', got %s", updateAssign.name.lexeme)
+		if updateAssign.variable.lexeme != "i" {
+			t.Errorf("Expected update variable 'i', got %s", updateAssign.variable.lexeme)
 		}
 
 		// Check update expression: i + 1
@@ -458,8 +458,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateLeftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.name.lexeme)
+		if updateLeftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.variable.lexeme)
 		}
 
 		// Check right operand of update (literal 1)
@@ -513,8 +513,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if varStmt.name.lexeme != "i" {
-			t.Errorf("Expected variable name 'i', got %s", varStmt.name.lexeme)
+		if varStmt.variable.lexeme != "i" {
+			t.Errorf("Expected variable name 'i', got %s", varStmt.variable.lexeme)
 		}
 
 		// Check variable initializer value
@@ -553,8 +553,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if leftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.name.lexeme)
+		if leftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.variable.lexeme)
 		}
 
 		// Check right operand of condition (literal 10)
@@ -569,9 +569,9 @@ func TestParserForLoops(t *testing.T) {
 		}
 
 		// Body should be the original statement directly (no block wrapper)
-		printStmt, ok := whileStmt.statement.(*PrintStmt)
+		printStmt, ok := whileStmt.body.(*PrintStmt)
 		if !ok {
-			t.Errorf("Expected PrintStmt as while body, got %T", whileStmt.statement)
+			t.Errorf("Expected PrintStmt as while body, got %T", whileStmt.body)
 			return
 		}
 
@@ -582,8 +582,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if printVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.name.lexeme)
+		if printVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.variable.lexeme)
 		}
 	})
 
@@ -632,8 +632,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if assignExpr.name.lexeme != "i" {
-			t.Errorf("Expected assignment to 'i', got %s", assignExpr.name.lexeme)
+		if assignExpr.variable.lexeme != "i" {
+			t.Errorf("Expected assignment to 'i', got %s", assignExpr.variable.lexeme)
 		}
 
 		// Check assignment value (literal 0)
@@ -672,8 +672,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if leftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.name.lexeme)
+		if leftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as left operand, got %s", leftVar.variable.lexeme)
 		}
 
 		// Check right operand of condition (literal 10)
@@ -688,9 +688,9 @@ func TestParserForLoops(t *testing.T) {
 		}
 
 		// While body should be a block containing the original body and update
-		bodyBlock, ok := whileStmt.statement.(*BlockStmt)
+		bodyBlock, ok := whileStmt.body.(*BlockStmt)
 		if !ok {
-			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.statement)
+			t.Errorf("Expected BlockStmt as while body, got %T", whileStmt.body)
 			return
 		}
 
@@ -713,8 +713,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if printVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.name.lexeme)
+		if printVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' in print statement, got %s", printVar.variable.lexeme)
 		}
 
 		// Second statement in body should be the update expression: i = i + 1
@@ -730,8 +730,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateAssign.name.lexeme != "i" {
-			t.Errorf("Expected update variable 'i', got %s", updateAssign.name.lexeme)
+		if updateAssign.variable.lexeme != "i" {
+			t.Errorf("Expected update variable 'i', got %s", updateAssign.variable.lexeme)
 		}
 
 		// Check update expression: i + 1
@@ -752,8 +752,8 @@ func TestParserForLoops(t *testing.T) {
 			return
 		}
 
-		if updateLeftVar.name.lexeme != "i" {
-			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.name.lexeme)
+		if updateLeftVar.variable.lexeme != "i" {
+			t.Errorf("Expected variable 'i' as update left operand, got %s", updateLeftVar.variable.lexeme)
 		}
 
 		// Check right operand of update (literal 1)
@@ -807,9 +807,9 @@ func TestParserForLoops(t *testing.T) {
 		}
 
 		// Body should be the original statement directly (no block wrapper)
-		printStmt, ok := whileStmt.statement.(*PrintStmt)
+		printStmt, ok := whileStmt.body.(*PrintStmt)
 		if !ok {
-			t.Errorf("Expected PrintStmt as while body, got %T", whileStmt.statement)
+			t.Errorf("Expected PrintStmt as while body, got %T", whileStmt.body)
 			return
 		}
 

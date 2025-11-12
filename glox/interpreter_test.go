@@ -579,7 +579,7 @@ func TestVariableExpressionEvaluation(t *testing.T) {
 	interpreter := createTestInterpreter()
 
 	t.Run("Undefined variable", func(t *testing.T) {
-		expr := &VariableExpr{name: createIdentifierToken("undefined", 1)}
+		expr := &VariableExpr{variable: createIdentifierToken("undefined", 1)}
 		err := evaluateExpressionWithError(t, interpreter, expr)
 
 		runtimeErr, ok := err.(RuntimeError)
@@ -594,13 +594,13 @@ func TestVariableExpressionEvaluation(t *testing.T) {
 	t.Run("Defined variable", func(t *testing.T) {
 		// First define the variable
 		varStmt := &VarStmt{
-			name:        createIdentifierToken("x", 1),
+			variable:    createIdentifierToken("x", 1),
 			initializer: &LiteralExpr{Value: 42.0},
 		}
 		executeStatement(t, interpreter, varStmt)
 
 		// Then evaluate the variable
-		expr := &VariableExpr{name: createIdentifierToken("x", 2)}
+		expr := &VariableExpr{variable: createIdentifierToken("x", 2)}
 		result := evaluateExpression(t, interpreter, expr)
 		assertEqual(t, 42.0, result, "Defined variable")
 	})
@@ -621,13 +621,13 @@ func TestVariableExpressionEvaluation(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				// Define variable
 				varStmt := &VarStmt{
-					name:        createIdentifierToken(tt.varName, 1),
+					variable:    createIdentifierToken(tt.varName, 1),
 					initializer: &LiteralExpr{Value: tt.value},
 				}
 				executeStatement(t, interpreter, varStmt)
 
 				// Evaluate variable
-				expr := &VariableExpr{name: createIdentifierToken(tt.varName, 2)}
+				expr := &VariableExpr{variable: createIdentifierToken(tt.varName, 2)}
 				result := evaluateExpression(t, interpreter, expr)
 				assertEqual(t, tt.value, result, tt.name)
 			})
@@ -644,8 +644,8 @@ func TestAssignmentExpressionEvaluation(t *testing.T) {
 
 	t.Run("Assign to undefined variable", func(t *testing.T) {
 		expr := &AssignExpr{
-			name:  createIdentifierToken("x", 1),
-			value: &LiteralExpr{Value: 42.0},
+			variable: createIdentifierToken("x", 1),
+			value:    &LiteralExpr{Value: 42.0},
 		}
 		err := evaluateExpressionWithError(t, interpreter, expr)
 
@@ -661,21 +661,21 @@ func TestAssignmentExpressionEvaluation(t *testing.T) {
 	t.Run("Assign to defined variable", func(t *testing.T) {
 		// First define the variable
 		varStmt := &VarStmt{
-			name:        createIdentifierToken("x", 1),
+			variable:    createIdentifierToken("x", 1),
 			initializer: &LiteralExpr{Value: 10.0},
 		}
 		executeStatement(t, interpreter, varStmt)
 
 		// Then assign a new value
 		expr := &AssignExpr{
-			name:  createIdentifierToken("x", 2),
-			value: &LiteralExpr{Value: 42.0},
+			variable: createIdentifierToken("x", 2),
+			value:    &LiteralExpr{Value: 42.0},
 		}
 		result := evaluateExpression(t, interpreter, expr)
 		assertEqual(t, 42.0, result, "Assignment result")
 
 		// Verify the variable was updated
-		varExpr := &VariableExpr{name: createIdentifierToken("x", 3)}
+		varExpr := &VariableExpr{variable: createIdentifierToken("x", 3)}
 		varResult := evaluateExpression(t, interpreter, varExpr)
 		assertEqual(t, 42.0, varResult, "Variable after assignment")
 	})
@@ -683,15 +683,15 @@ func TestAssignmentExpressionEvaluation(t *testing.T) {
 	t.Run("Assignment returns the assigned value", func(t *testing.T) {
 		// Define variable
 		varStmt := &VarStmt{
-			name:        createIdentifierToken("x", 1),
+			variable:    createIdentifierToken("x", 1),
 			initializer: &LiteralExpr{Value: 10.0},
 		}
 		executeStatement(t, interpreter, varStmt)
 
 		// Assignment should return the assigned value
 		expr := &AssignExpr{
-			name:  createIdentifierToken("x", 2),
-			value: &LiteralExpr{Value: 99.0},
+			variable: createIdentifierToken("x", 2),
+			value:    &LiteralExpr{Value: 99.0},
 		}
 		result := evaluateExpression(t, interpreter, expr)
 		assertEqual(t, 99.0, result, "Assignment return value")
@@ -700,11 +700,11 @@ func TestAssignmentExpressionEvaluation(t *testing.T) {
 	t.Run("Chained assignment", func(t *testing.T) {
 		// Define variables
 		varStmt1 := &VarStmt{
-			name:        createIdentifierToken("x", 1),
+			variable:    createIdentifierToken("x", 1),
 			initializer: &LiteralExpr{Value: 10.0},
 		}
 		varStmt2 := &VarStmt{
-			name:        createIdentifierToken("y", 2),
+			variable:    createIdentifierToken("y", 2),
 			initializer: &LiteralExpr{Value: 20.0},
 		}
 		executeStatement(t, interpreter, varStmt1)
@@ -712,19 +712,19 @@ func TestAssignmentExpressionEvaluation(t *testing.T) {
 
 		// Chain assignment: x = y = 42
 		innerAssign := &AssignExpr{
-			name:  createIdentifierToken("y", 3),
-			value: &LiteralExpr{Value: 42.0},
+			variable: createIdentifierToken("y", 3),
+			value:    &LiteralExpr{Value: 42.0},
 		}
 		outerAssign := &AssignExpr{
-			name:  createIdentifierToken("x", 3),
-			value: innerAssign,
+			variable: createIdentifierToken("x", 3),
+			value:    innerAssign,
 		}
 		result := evaluateExpression(t, interpreter, outerAssign)
 		assertEqual(t, 42.0, result, "Chained assignment result")
 
 		// Verify both variables were updated
-		xExpr := &VariableExpr{name: createIdentifierToken("x", 4)}
-		yExpr := &VariableExpr{name: createIdentifierToken("y", 4)}
+		xExpr := &VariableExpr{variable: createIdentifierToken("x", 4)}
+		yExpr := &VariableExpr{variable: createIdentifierToken("y", 4)}
 		xResult := evaluateExpression(t, interpreter, xExpr)
 		yResult := evaluateExpression(t, interpreter, yExpr)
 		assertEqual(t, 42.0, xResult, "x after chained assignment")
@@ -813,7 +813,7 @@ func TestStatementExecution(t *testing.T) {
 			{
 				name: "Variable with initializer",
 				stmt: &VarStmt{
-					name:        createIdentifierToken("x", 1),
+					variable:    createIdentifierToken("x", 1),
 					initializer: &LiteralExpr{Value: 42.0},
 				},
 				expected: 42.0,
@@ -821,7 +821,7 @@ func TestStatementExecution(t *testing.T) {
 			{
 				name: "Variable without initializer",
 				stmt: &VarStmt{
-					name:        createIdentifierToken("y", 1),
+					variable:    createIdentifierToken("y", 1),
 					initializer: nil,
 				},
 				expected: nil,
@@ -837,7 +837,7 @@ func TestStatementExecution(t *testing.T) {
 				if !ok {
 					t.Fatalf("Expected VarStmt")
 				}
-				expr := &VariableExpr{name: varStmt.name}
+				expr := &VariableExpr{variable: varStmt.variable}
 				result := evaluateExpression(t, interpreter, expr)
 				assertEqual(t, tt.expected, result, tt.name)
 			})
@@ -876,7 +876,7 @@ func TestStatementExecution(t *testing.T) {
 
 		// Define a variable to track which branch was executed
 		varStmt := &VarStmt{
-			name:        createIdentifierToken("result", 1),
+			variable:    createIdentifierToken("result", 1),
 			initializer: &LiteralExpr{Value: "none"},
 		}
 		executeStatement(t, interpreter, varStmt)
@@ -885,8 +885,8 @@ func TestStatementExecution(t *testing.T) {
 			// Reset result
 			assignStmt := &ExpressionStmt{
 				expression: &AssignExpr{
-					name:  createIdentifierToken("result", 2),
-					value: &LiteralExpr{Value: "none"},
+					variable: createIdentifierToken("result", 2),
+					value:    &LiteralExpr{Value: "none"},
 				},
 			}
 			executeStatement(t, interpreter, assignStmt)
@@ -896,8 +896,8 @@ func TestStatementExecution(t *testing.T) {
 				condition: &LiteralExpr{Value: true},
 				thenBranch: &ExpressionStmt{
 					expression: &AssignExpr{
-						name:  createIdentifierToken("result", 3),
-						value: &LiteralExpr{Value: "then"},
+						variable: createIdentifierToken("result", 3),
+						value:    &LiteralExpr{Value: "then"},
 					},
 				},
 				elseBranch: nil,
@@ -905,7 +905,7 @@ func TestStatementExecution(t *testing.T) {
 			executeStatement(t, interpreter, ifStmt)
 
 			// Check result
-			expr := &VariableExpr{name: createIdentifierToken("result", 4)}
+			expr := &VariableExpr{variable: createIdentifierToken("result", 4)}
 			result := evaluateExpression(t, interpreter, expr)
 			assertEqual(t, "then", result, "If true condition")
 		})
@@ -914,8 +914,8 @@ func TestStatementExecution(t *testing.T) {
 			// Reset result
 			assignStmt := &ExpressionStmt{
 				expression: &AssignExpr{
-					name:  createIdentifierToken("result", 5),
-					value: &LiteralExpr{Value: "none"},
+					variable: createIdentifierToken("result", 5),
+					value:    &LiteralExpr{Value: "none"},
 				},
 			}
 			executeStatement(t, interpreter, assignStmt)
@@ -925,21 +925,21 @@ func TestStatementExecution(t *testing.T) {
 				condition: &LiteralExpr{Value: false},
 				thenBranch: &ExpressionStmt{
 					expression: &AssignExpr{
-						name:  createIdentifierToken("result", 6),
-						value: &LiteralExpr{Value: "then"},
+						variable: createIdentifierToken("result", 6),
+						value:    &LiteralExpr{Value: "then"},
 					},
 				},
 				elseBranch: &ExpressionStmt{
 					expression: &AssignExpr{
-						name:  createIdentifierToken("result", 6),
-						value: &LiteralExpr{Value: "else"},
+						variable: createIdentifierToken("result", 6),
+						value:    &LiteralExpr{Value: "else"},
 					},
 				},
 			}
 			executeStatement(t, interpreter, ifStmt)
 
 			// Check result
-			expr := &VariableExpr{name: createIdentifierToken("result", 7)}
+			expr := &VariableExpr{variable: createIdentifierToken("result", 7)}
 			result := evaluateExpression(t, interpreter, expr)
 			assertEqual(t, "else", result, "If false condition with else")
 		})
@@ -948,8 +948,8 @@ func TestStatementExecution(t *testing.T) {
 			// Reset result
 			assignStmt := &ExpressionStmt{
 				expression: &AssignExpr{
-					name:  createIdentifierToken("result", 8),
-					value: &LiteralExpr{Value: "none"},
+					variable: createIdentifierToken("result", 8),
+					value:    &LiteralExpr{Value: "none"},
 				},
 			}
 			executeStatement(t, interpreter, assignStmt)
@@ -959,8 +959,8 @@ func TestStatementExecution(t *testing.T) {
 				condition: &LiteralExpr{Value: false},
 				thenBranch: &ExpressionStmt{
 					expression: &AssignExpr{
-						name:  createIdentifierToken("result", 9),
-						value: &LiteralExpr{Value: "then"},
+						variable: createIdentifierToken("result", 9),
+						value:    &LiteralExpr{Value: "then"},
 					},
 				},
 				elseBranch: nil,
@@ -968,7 +968,7 @@ func TestStatementExecution(t *testing.T) {
 			executeStatement(t, interpreter, ifStmt)
 
 			// Check result should remain unchanged
-			expr := &VariableExpr{name: createIdentifierToken("result", 10)}
+			expr := &VariableExpr{variable: createIdentifierToken("result", 10)}
 			result := evaluateExpression(t, interpreter, expr)
 			assertEqual(t, "none", result, "If false condition without else")
 		})
@@ -979,7 +979,7 @@ func TestStatementExecution(t *testing.T) {
 
 		// Define counter variable
 		varStmt := &VarStmt{
-			name:        createIdentifierToken("counter", 1),
+			variable:    createIdentifierToken("counter", 1),
 			initializer: &LiteralExpr{Value: 0.0},
 		}
 		executeStatement(t, interpreter, varStmt)
@@ -987,15 +987,15 @@ func TestStatementExecution(t *testing.T) {
 		// While loop that increments counter 3 times
 		whileStmt := &WhileStmt{
 			condition: &BinaryExpr{
-				Left:     &VariableExpr{name: createIdentifierToken("counter", 2)},
+				Left:     &VariableExpr{variable: createIdentifierToken("counter", 2)},
 				Operator: createOperatorToken(LESS, 2),
 				Right:    &LiteralExpr{Value: 3.0},
 			},
-			statement: &ExpressionStmt{
+			body: &ExpressionStmt{
 				expression: &AssignExpr{
-					name: createIdentifierToken("counter", 2),
+					variable: createIdentifierToken("counter", 2),
 					value: &BinaryExpr{
-						Left:     &VariableExpr{name: createIdentifierToken("counter", 2)},
+						Left:     &VariableExpr{variable: createIdentifierToken("counter", 2)},
 						Operator: createOperatorToken(PLUS, 2),
 						Right:    &LiteralExpr{Value: 1.0},
 					},
@@ -1005,7 +1005,7 @@ func TestStatementExecution(t *testing.T) {
 		executeStatement(t, interpreter, whileStmt)
 
 		// Check final counter value
-		expr := &VariableExpr{name: createIdentifierToken("counter", 3)}
+		expr := &VariableExpr{variable: createIdentifierToken("counter", 3)}
 		result := evaluateExpression(t, interpreter, expr)
 		assertEqual(t, 3.0, result, "While loop counter")
 	})
@@ -1015,7 +1015,7 @@ func TestStatementExecution(t *testing.T) {
 
 		// Define outer variable
 		outerVarStmt := &VarStmt{
-			name:        createIdentifierToken("outer", 1),
+			variable:    createIdentifierToken("outer", 1),
 			initializer: &LiteralExpr{Value: "outer"},
 		}
 		executeStatement(t, interpreter, outerVarStmt)
@@ -1024,13 +1024,13 @@ func TestStatementExecution(t *testing.T) {
 		blockStmt := &BlockStmt{
 			statements: []Stmt{
 				&VarStmt{
-					name:        createIdentifierToken("inner", 2),
+					variable:    createIdentifierToken("inner", 2),
 					initializer: &LiteralExpr{Value: "inner"},
 				},
 				&ExpressionStmt{
 					expression: &AssignExpr{
-						name:  createIdentifierToken("outer", 3),
-						value: &LiteralExpr{Value: "modified"},
+						variable: createIdentifierToken("outer", 3),
+						value:    &LiteralExpr{Value: "modified"},
 					},
 				},
 			},
@@ -1038,12 +1038,12 @@ func TestStatementExecution(t *testing.T) {
 		executeStatement(t, interpreter, blockStmt)
 
 		// Check that outer variable was modified
-		outerExpr := &VariableExpr{name: createIdentifierToken("outer", 4)}
+		outerExpr := &VariableExpr{variable: createIdentifierToken("outer", 4)}
 		outerResult := evaluateExpression(t, interpreter, outerExpr)
 		assertEqual(t, "modified", outerResult, "Outer variable after block")
 
 		// Check that inner variable is not accessible (should cause error)
-		innerExpr := &VariableExpr{name: createIdentifierToken("inner", 5)}
+		innerExpr := &VariableExpr{variable: createIdentifierToken("inner", 5)}
 		err := evaluateExpressionWithError(t, interpreter, innerExpr)
 
 		runtimeErr, ok := err.(RuntimeError)
@@ -1060,7 +1060,7 @@ func TestStatementExecution(t *testing.T) {
 
 		// Define variable in outer scope
 		outerVarStmt := &VarStmt{
-			name:        createIdentifierToken("x", 1),
+			variable:    createIdentifierToken("x", 1),
 			initializer: &LiteralExpr{Value: "outer"},
 		}
 		executeStatement(t, interpreter, outerVarStmt)
@@ -1069,7 +1069,7 @@ func TestStatementExecution(t *testing.T) {
 		innerBlock := &BlockStmt{
 			statements: []Stmt{
 				&VarStmt{
-					name:        createIdentifierToken("x", 3),
+					variable:    createIdentifierToken("x", 3),
 					initializer: &LiteralExpr{Value: "inner"},
 				},
 			},
@@ -1077,7 +1077,7 @@ func TestStatementExecution(t *testing.T) {
 		outerBlock := &BlockStmt{
 			statements: []Stmt{
 				&VarStmt{
-					name:        createIdentifierToken("x", 2),
+					variable:    createIdentifierToken("x", 2),
 					initializer: &LiteralExpr{Value: "middle"},
 				},
 				innerBlock,
@@ -1086,7 +1086,7 @@ func TestStatementExecution(t *testing.T) {
 		executeStatement(t, interpreter, outerBlock)
 
 		// Check that outer variable is still accessible and unchanged
-		outerExpr := &VariableExpr{name: createIdentifierToken("x", 4)}
+		outerExpr := &VariableExpr{variable: createIdentifierToken("x", 4)}
 		outerResult := evaluateExpression(t, interpreter, outerExpr)
 		assertEqual(t, "outer", outerResult, "Outer variable after nested blocks")
 	})
@@ -1257,7 +1257,7 @@ func TestErrorHandling(t *testing.T) {
 
 		// Define variable first
 		varStmt := &VarStmt{
-			name:        createIdentifierToken("x", 1),
+			variable:    createIdentifierToken("x", 1),
 			initializer: &LiteralExpr{Value: 10.0},
 		}
 		executeStatement(t, interpreter, varStmt)
@@ -1265,7 +1265,7 @@ func TestErrorHandling(t *testing.T) {
 		// Try to assign with an error in the expression
 		assignStmt := &ExpressionStmt{
 			expression: &AssignExpr{
-				name: createIdentifierToken("x", 2),
+				variable: createIdentifierToken("x", 2),
 				value: &BinaryExpr{
 					Left:     &LiteralExpr{Value: "hello"},
 					Operator: createOperatorToken(MINUS, 2),
@@ -1297,15 +1297,15 @@ func TestFunctionDeclaration(t *testing.T) {
 		interpreter := createTestInterpreter()
 
 		funcStmt := &FunctionStmt{
-			name: createIdentifierToken("add", 1),
+			functionName: createIdentifierToken("add", 1),
 			params: []Token{
 				createIdentifierToken("a", 1),
 				createIdentifierToken("b", 1),
 			},
 			body: []Stmt{
 				&ReturnStmt{
-					keyword: createKeywordToken(RETURN, 1),
-					value:   &LiteralExpr{Value: 42.0},
+					keyword:     createKeywordToken(RETURN, 1),
+					returnValue: &LiteralExpr{Value: 42.0},
 				},
 			},
 		}
@@ -1313,7 +1313,7 @@ func TestFunctionDeclaration(t *testing.T) {
 		executeStatement(t, interpreter, funcStmt)
 
 		// Verify function is stored and has correct arity
-		funcExpr := &VariableExpr{name: createIdentifierToken("add", 2)}
+		funcExpr := &VariableExpr{variable: createIdentifierToken("add", 2)}
 		result := evaluateExpression(t, interpreter, funcExpr)
 
 		funcImpl, ok := result.(*LoxFunction)
@@ -1333,14 +1333,14 @@ func TestFunctionCallErrors(t *testing.T) {
 
 		// Define a variable that's not a function
 		varStmt := &VarStmt{
-			name:        createIdentifierToken("x", 1),
+			variable:    createIdentifierToken("x", 1),
 			initializer: &LiteralExpr{Value: 42.0},
 		}
 		executeStatement(t, interpreter, varStmt)
 
 		// Try to call it
 		callExpr := &CallExpr{
-			Callee:    &VariableExpr{name: createIdentifierToken("x", 2)},
+			Callee:    &VariableExpr{variable: createIdentifierToken("x", 2)},
 			Paren:     createOperatorToken(RIGHT_PAREN, 2),
 			Arguments: []Expr{},
 		}
@@ -1360,7 +1360,7 @@ func TestFunctionCallErrors(t *testing.T) {
 
 		// Define a function that requires 2 arguments
 		funcStmt := &FunctionStmt{
-			name: createIdentifierToken("add", 1),
+			functionName: createIdentifierToken("add", 1),
 			params: []Token{
 				createIdentifierToken("a", 1),
 				createIdentifierToken("b", 1),
@@ -1368,10 +1368,10 @@ func TestFunctionCallErrors(t *testing.T) {
 			body: []Stmt{
 				&ReturnStmt{
 					keyword: createKeywordToken(RETURN, 1),
-					value: &BinaryExpr{
-						Left:     &VariableExpr{name: createIdentifierToken("a", 1)},
+					returnValue: &BinaryExpr{
+						Left:     &VariableExpr{variable: createIdentifierToken("a", 1)},
 						Operator: createOperatorToken(PLUS, 1),
-						Right:    &VariableExpr{name: createIdentifierToken("b", 1)},
+						Right:    &VariableExpr{variable: createIdentifierToken("b", 1)},
 					},
 				},
 			},
@@ -1380,7 +1380,7 @@ func TestFunctionCallErrors(t *testing.T) {
 
 		// Call with only 1 argument
 		callExpr := &CallExpr{
-			Callee:    &VariableExpr{name: createIdentifierToken("add", 2)},
+			Callee:    &VariableExpr{variable: createIdentifierToken("add", 2)},
 			Paren:     createOperatorToken(RIGHT_PAREN, 2),
 			Arguments: []Expr{&LiteralExpr{Value: 1.0}},
 		}
@@ -1400,13 +1400,13 @@ func TestFunctionCallErrors(t *testing.T) {
 
 		// Define a function that requires 1 argument
 		funcStmt := &FunctionStmt{
-			name:   createIdentifierToken("double", 1),
-			params: []Token{createIdentifierToken("x", 1)},
+			functionName: createIdentifierToken("double", 1),
+			params:       []Token{createIdentifierToken("x", 1)},
 			body: []Stmt{
 				&ReturnStmt{
 					keyword: createKeywordToken(RETURN, 1),
-					value: &BinaryExpr{
-						Left:     &VariableExpr{name: createIdentifierToken("x", 1)},
+					returnValue: &BinaryExpr{
+						Left:     &VariableExpr{variable: createIdentifierToken("x", 1)},
 						Operator: createOperatorToken(STAR, 1),
 						Right:    &LiteralExpr{Value: 2.0},
 					},
@@ -1417,7 +1417,7 @@ func TestFunctionCallErrors(t *testing.T) {
 
 		// Call with 2 arguments
 		callExpr := &CallExpr{
-			Callee: &VariableExpr{name: createIdentifierToken("double", 2)},
+			Callee: &VariableExpr{variable: createIdentifierToken("double", 2)},
 			Paren:  createOperatorToken(RIGHT_PAREN, 2),
 			Arguments: []Expr{
 				&LiteralExpr{Value: 5.0},
@@ -1442,7 +1442,7 @@ func TestBuiltinFunction(t *testing.T) {
 
 		// Call clock() - it should return a number
 		callExpr := &CallExpr{
-			Callee:    &VariableExpr{name: createIdentifierToken("clock", 1)},
+			Callee:    &VariableExpr{variable: createIdentifierToken("clock", 1)},
 			Paren:     createOperatorToken(RIGHT_PAREN, 1),
 			Arguments: []Expr{},
 		}

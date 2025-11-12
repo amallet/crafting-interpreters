@@ -41,8 +41,8 @@ func TestParserVariableDeclaration(t *testing.T) {
 				return
 			}
 
-			if varStmt.name.lexeme != test.varName {
-				t.Errorf("Expected variable name %s, got %s", test.varName, varStmt.name.lexeme)
+			if varStmt.variable.lexeme != test.varName {
+				t.Errorf("Expected variable name %s, got %s", test.varName, varStmt.variable.lexeme)
 			}
 
 			if (varStmt.initializer != nil) != test.hasInit {
@@ -232,9 +232,9 @@ func TestParserWhileStatement(t *testing.T) {
 	}
 
 	// Check body
-	bodyPrintStmt, ok := whileStmt.statement.(*PrintStmt)
+	bodyPrintStmt, ok := whileStmt.body.(*PrintStmt)
 	if !ok {
-		t.Errorf("Expected PrintStmt body, got %T", whileStmt.statement)
+		t.Errorf("Expected PrintStmt body, got %T", whileStmt.body)
 		return
 	}
 
@@ -286,8 +286,8 @@ func TestParserBlockStatement(t *testing.T) {
 		return
 	}
 
-	if varStmt.name.lexeme != "x" {
-		t.Errorf("Expected variable name 'x', got %s", varStmt.name.lexeme)
+	if varStmt.variable.lexeme != "x" {
+		t.Errorf("Expected variable name 'x', got %s", varStmt.variable.lexeme)
 	}
 
 	// Check second statement (print)
@@ -303,8 +303,8 @@ func TestParserBlockStatement(t *testing.T) {
 		return
 	}
 
-	if variableExpr.name.lexeme != "x" {
-		t.Errorf("Expected variable name 'x' in print, got %s", variableExpr.name.lexeme)
+	if variableExpr.variable.lexeme != "x" {
+		t.Errorf("Expected variable name 'x' in print, got %s", variableExpr.variable.lexeme)
 	}
 }
 
@@ -371,8 +371,8 @@ func TestParserFunctionDeclaration(t *testing.T) {
 				return
 			}
 
-			if funcStmt.name.lexeme != test.expectedName {
-				t.Errorf("Expected function name %s, got %s", test.expectedName, funcStmt.name.lexeme)
+			if funcStmt.functionName.lexeme != test.expectedName {
+				t.Errorf("Expected function name %s, got %s", test.expectedName, funcStmt.functionName.lexeme)
 			}
 
 			if len(funcStmt.params) != test.expectedParams {
@@ -434,8 +434,8 @@ func TestParserReturnStatement(t *testing.T) {
 				return
 			}
 
-			if (returnStmt.value != nil) != test.hasValue {
-				t.Errorf("Expected hasValue %v, got %v", test.hasValue, returnStmt.value != nil)
+			if (returnStmt.returnValue != nil) != test.hasValue {
+				t.Errorf("Expected hasValue %v, got %v", test.hasValue, returnStmt.returnValue != nil)
 			}
 		})
 	}
