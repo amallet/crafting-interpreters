@@ -83,6 +83,74 @@ fun test(a) {
 
 		runProgramAndExpectError(t, program, "Already a variable with this name in this scope", "Variable redeclaration with parameter name")
 	})
+
+	t.Run("Unused local variable in block", func(t *testing.T) {
+		program := `
+{
+  var unused = "value"; // Error: Unused variable
+}
+`
+
+		runProgramAndExpectError(t, program, "Unused variable", "Unused local variable in block")
+	})
+
+	t.Run("Unused local variable in function", func(t *testing.T) {
+		program := `
+fun test() {
+  var unused = "value"; // Error: Unused variable
+}
+test();
+`
+
+		runProgramAndExpectError(t, program, "Unused variable", "Unused local variable in function")
+	})
+
+	t.Run("Unused variable in nested block", func(t *testing.T) {
+		program := `
+{
+  var used = "outer";
+  {
+    var unused = "inner"; // Error: Unused variable
+    print used;
+  }
+}
+`
+
+		runProgramAndExpectError(t, program, "Unused variable", "Unused variable in nested block")
+	})
+
+	t.Run("Multiple unused variables", func(t *testing.T) {
+		program := `
+{
+  var unused1 = "first"; // Error: Unused variable
+  var unused2 = "second"; // Error: Unused variable
+}
+`
+
+		runProgramAndExpectError(t, program, "Unused variable", "Multiple unused variables")
+	})
+
+	t.Run("Unused function parameter", func(t *testing.T) {
+		program := `
+fun test(param) { // Error: Unused variable
+  print "hello";
+}
+test("arg");
+`
+
+		runProgramAndExpectError(t, program, "Unused variable", "Unused function parameter")
+	})
+
+	t.Run("Unused variable that shadows global", func(t *testing.T) {
+		program := `
+var global = "global";
+{
+  var global = "local"; // Error: Unused variable (even though it shadows)
+}
+`
+
+		runProgramAndExpectError(t, program, "Unused variable", "Unused variable that shadows global")
+	})
 }
 
 // ============================================================================

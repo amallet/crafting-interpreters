@@ -821,6 +821,7 @@ print test(10);
 		program := `
 fun noReturn() {
 	var x = 42;
+	x = x + 1;
 }
 var result = noReturn();
 print result;
@@ -1051,6 +1052,25 @@ print getX();
 
 		expected := []string{"0", "10", "20"}
 		runProgramAndCheckOutput(t, program, expected, "Closure sees updates to captured variable")
+	})
+
+	t.Run("Closure captures variable before shadowing declaration", func(t *testing.T) {
+		program := `
+var a = "global";
+{
+    fun showA() {
+        print a;
+    }
+
+    showA();
+    var a = "block";
+    print a; // Print local a to show it exists
+    showA(); // Still prints global because closure captured it before local declaration
+}
+`
+
+		expected := []string{"global", "block", "global"}
+		runProgramAndCheckOutput(t, program, expected, "Closure captures variable before shadowing declaration")
 	})
 }
 

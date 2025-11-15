@@ -4,33 +4,39 @@ import (
 	"fmt"
 )
 
-type FunctionType int
+type functionType int
 
 const (
-	FunctionTypeNone FunctionType = iota
-	FunctionTypeFunction
+	functionTypeNone functionType = iota
+	functionTypeFunction
 )
 
-type DefinitionStatus bool
+type variableStatus int
 
 const (
-	IsDeclared DefinitionStatus = false
-	IsDefined DefinitionStatus = true 
+	isDeclared variableStatus = iota
+	isDefined 
+	isUsed
 )
+
+type varDecl struct {
+	token Token
+	status variableStatus
+}
 
 type Resolver struct {
 	runtime         LoxRuntime
 	interpreter     *Interpreter
-	scopes          []map[string]DefinitionStatus
-	currentFunction FunctionType
+	scopes          []map[string]*varDecl
+	currentFunction functionType
 }
 
 func NewResolver(runtime LoxRuntime, interpreter *Interpreter) *Resolver {
 	return &Resolver{
 		runtime:         runtime,
 		interpreter:     interpreter,
-		scopes:          make([]map[string]DefinitionStatus, 0),
-		currentFunction: FunctionTypeNone,
+		scopes:          make([]map[string]*varDecl, 0),
+		currentFunction: functionTypeNone,
 	}
 }
 
@@ -89,7 +95,7 @@ func (r *Resolver) VisitPrintStmt(stmt *PrintStmt) error {
 func (r *Resolver) VisitReturnStmt(stmt *ReturnStmt) error {
 
 	// Can only have return statements inside a function
-	if r.currentFunction == FunctionTypeNone {
+	if r.currentFunction == functionTypeNone {
 		r.runtime.parseError(stmt.keyword, "Can't return from top-level code.")
 		return fmt.Errorf("resolver error ")
 	}
@@ -185,12 +191,13 @@ func (r *Resolver) VisitUnaryExpr(expr *UnaryExpr) (any, error) {
 }
 
 func (r *Resolver) VisitVariableExpr(expr *VariableExpr) (any, error) {
+
+	// Check that variable isn't being referenced while still in its initializer ie 
+	// while it's been declared, but not yet defined
 	if len(r.scopes) != 0 {
 		top_scope := r.scopes[len(r.scopes)-1]
-		if defnStatus, ok := top_scope[expr.variable.lexeme]; ok {
-			if defnStatus == IsDeclared {
-				// If the variable has been declared, but not defined yet, we're still in 
-				// its initializer 
+		if variable, ok := top_scope[expr.variable.lexeme]; ok {
+			if variable.status == isDeclared {
 				r.runtime.parseError(expr.variable, "Can't read local variable in its own initializer")
 				return nil, fmt.Errorf("resolver error")
 			}
@@ -208,37 +215,40 @@ func (r *Resolver) VisitFunctionStmt(stmt *FunctionStmt) error {
 		return err
 	}
 	r.define(stmt.functionName)
-	return r.resolveFunction(stmt, FunctionTypeFunction)
+	return r.resolveFunction(stmt, functionTypeFunction)
 }
 
-func (r *Resolver) resolveFunction(function *FunctionStmt, fnType FunctionType) error {
+func (r *Resolver) resolveFunction(function *FunctionStmt, fnType functionType) error {
 	enclosingFunction := r.currentFunction
 	r.currentFunction = fnType
 
 	// Function parameters and function body are in a new scope
+	var err error 
 	r.beginScope()
+
 	for _, param := range function.params {
-		if err := r.declare(param); err != nil {
-			r.endScope()
+		if err = r.declare(param); err != nil {
+			_ = r.endScope() // might return error, but already in error case 
 			return err
 		}
 		r.define(param)
 	}
-	if err := r.resolveStmts(function.body); err != nil {
-		r.endScope()
+	if err = r.resolveStmts(function.body); err != nil {
+		_ = r.endScope() // might return error, but already in error case 
 		return err
 	}
-	r.endScope()
+	err = r.endScope()
 
 	r.currentFunction = enclosingFunction
-	return nil
+	return err 
 }
 
 func (r *Resolver) resolveLocal(expr Expr, token Token) {
 	for i := len(r.scopes) - 1; i >= 0; i-- {
-		if _, ok := r.scopes[i][token.lexeme]; ok {
+		if variable, ok := r.scopes[i][token.lexeme]; ok {
+			variable.status = isUsed // to keep track of used/unused variables
 			r.interpreter.resolve(expr, len(r.scopes)-1-i)
-			return 
+			return
 		}
 	}
 }
@@ -258,24 +268,37 @@ func (r *Resolver) declare(token Token) error {
 		return fmt.Errorf("resolver error")
 	}
 
-	current_scope[token.lexeme] = IsDeclared
+	current_scope[token.lexeme] = &varDecl{ token: token, status: isDeclared }
+
 	return nil
 }
 
 func (r *Resolver) define(token Token) {
-	if len(r.scopes) == 0 { // currently in global scope, don't need to define token
+	if len(r.scopes) == 0 { // in global scope, don't need to define token
 		return
 	}
-	current_scope := r.scopes[len(r.scopes)-1]
-	current_scope[token.lexeme] = IsDefined 
+
+	// Token is defined in current scope ie scope that's at the top of the stack
+	r.scopes[len(r.scopes) - 1][token.lexeme].status = isDefined
 }
 
 func (r *Resolver) beginScope() {
-	r.scopes = append(r.scopes, make(map[string]DefinitionStatus))
+	r.scopes = append(r.scopes, make(map[string]*varDecl))
 }
 
-func (r *Resolver) endScope() {
+func (r *Resolver) endScope() error {
+	
 	if len(r.scopes) > 0 {
-		r.scopes = r.scopes[:len(r.scopes)-1]
+		// Check that all variables defined in this scope were actually used
+		for _, v := range r.scopes[len(r.scopes) - 1] {
+			if v.status != isUsed {
+				r.runtime.parseError(v.token, "Unused variable")
+				return fmt.Errorf("unused variable")
+			}
+		}
+
+		r.scopes = r.scopes[:len(r.scopes)-1] // Pop top scope off the stack
 	}
+
+	return nil 
 }

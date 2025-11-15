@@ -69,6 +69,7 @@ GLox processes Lox source code through four distinct stages:
      - Reading a local variable in its own initializer
      - Returning from top-level code (outside functions)
      - Variable redeclaration in the same local scope
+     - Unused local variables (variables declared but never read or assigned to)
    - Enables efficient variable lookup during interpretation
 
 4. **Interpreter (interpreter.go)** - Execution
@@ -127,6 +128,7 @@ The `Resolver` performs static analysis to resolve variable references:
   - **Self-reference in initializer**: `var a = a;` - can't read local variable in its own initializer
   - **Top-level return**: `return value;` at top level - can't return from top-level code
   - **Variable redeclaration**: `var a = 1; var a = 2;` in same scope - already a variable with this name
+  - **Unused local variables**: `var unused = 1;` - local variables that are declared but never read or assigned to
 - Tracks function context to validate return statements are only inside functions
 - Manages scope stack to track variable declaration/definition status (prevents reading uninitialized variables)
 
@@ -172,6 +174,7 @@ The `LoxRuntime` interface abstracts error reporting to allow:
   - Reading local variable in its own initializer
   - Returning from top-level code
   - Variable redeclaration in same scope
+  - Unused local variables (declared but never read or assigned to)
 - Execution stops if resolver errors are detected
 
 **Runtime errors**: Wrapped in `RuntimeError` type with token location
@@ -241,6 +244,7 @@ Tests are organized by component:
 - Maximum 255 parameters and 255 arguments are enforced by the parser
 - Variable resolution happens before interpretation for efficient lookup and static error detection
 - Resolver stores scope distances in interpreter's `locals` map for O(1) local variable access
+- Unused variable detection: Resolver tracks variable usage and reports errors for unused local variables and function parameters
 - Go interfaces are used to implement the visitor pattern (vs. classes in Java)
 - Go's type system is leveraged for AST node definitions
 - Error handling follows Go conventions (returning errors vs. throwing exceptions)
