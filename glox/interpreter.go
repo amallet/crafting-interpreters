@@ -154,6 +154,15 @@ func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
 	return nil
 }
 
+func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
+	i.env.defineVarValue(stmt.className.lexeme, nil)
+	klass := NewLoxClass(stmt.className.lexeme)
+	if err := i.env.assignVarValue(stmt.className, klass); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Execute statements within a block ie { ... }
 func (i *Interpreter) VisitBlockStmt(stmt *BlockStmt) error {
 	// When interpreting a block, create a new environment to handle
@@ -325,6 +334,61 @@ func (i *Interpreter) VisitCallExpr(e *CallExpr) (any, error) {
 	return callable.call(i, arguments)
 }
 
+// Retrieve instance properties 
+func (i *Interpreter) VisitPropGetExpr(p *PropGetExpr) (any, error) {
+	var obj any
+	var err error
+
+	// Make sure property is being retrieved from an instance of a class
+	if obj, err = i.evaluate(p.object); err != nil {
+		return nil, err
+	}
+	var instance *LoxInstance
+	var ok bool
+	if instance, ok = obj.(*LoxInstance); !ok {
+		return nil, RuntimeError{p.propName, "Only instances have properties"}
+	}
+
+	// Try to retrieve the property 
+	var propValue any
+	if propValue, err = instance.get(p.propName); err != nil {
+		return nil, err
+	}
+
+	return propValue, nil
+}
+
+// Set instance properties 
+func (i *Interpreter) VisitPropSetExpr(p *PropSetExpr) (any, error) {
+	var obj any
+	var err error
+
+	// Validate that property is being set on an instance of a class 
+	if obj, err = i.evaluate(p.object); err != nil {
+		return nil, err
+	}
+	var instance *LoxInstance
+	var ok bool
+	if instance, ok = obj.(*LoxInstance); !ok {
+		return nil, RuntimeError{p.propName, "Only instances have fields"}
+	}
+
+	// Figure out actual value that property is being set to, and make
+	// sure it's something that's valid r-value
+	var propValue any
+	if propValue, err = i.evaluate(p.propValue); err != nil {
+		return nil, err
+	}
+	if _, isClass := propValue.(*LoxClass); isClass {
+		return nil, RuntimeError{p.propName, "Can't set a field to be a class"}
+	}
+
+	// Actually set the property 
+	instance.set(p.propName, propValue)
+
+	return propValue, nil
+}
+
 // Evaluate expressions in parentheses
 func (i *Interpreter) VisitGroupingExpr(e *GroupingExpr) (any, error) {
 	return i.evaluate(e.Expression)
@@ -341,8 +405,10 @@ func (i *Interpreter) VisitLogicalExpr(expr *LogicalExpr) (any, error) {
 	if left, err := i.evaluate(expr.Left); err != nil {
 		return nil, err
 	} else {
+		// short-circuit expressions, depending on whether left expression
+		// is truthy or not
 		if isTruthy(left) {
-			if expr.Operator.token_type == OR {
+			if expr.Operator.token_type == OR { 
 				return left, nil
 			}
 		} else if expr.Operator.token_type == AND {

@@ -89,6 +89,8 @@ GLox processes Lox source code through four distinct stages:
 - `AssignExpr` - Variable assignments (returns assigned value)
 - `LogicalExpr` - Short-circuiting logical operations: and, or
 - `CallExpr` - Function calls with callee expression and argument list
+- `PropGetExpr` - Property access on instances: `instance.property`
+- `PropSetExpr` - Property assignment on instances: `instance.property = value`
 
 **Statement nodes (stmt.go)**: Implement `Stmt` interface with `Accept(StmtVisitor)` method
 - `ExpressionStmt` - Expression statements (discards result)
@@ -99,6 +101,7 @@ GLox processes Lox source code through four distinct stages:
 - `WhileStmt` + `IfStmt` - Loop statements
 - `FunctionStmt` - Function declarations with name, parameters, and body
 - `ReturnStmt` - Return statements (with optional return value)
+- `ClassStmt` - Class declarations with name and methods
 
 ### Visitor Pattern Implementation
 
@@ -155,6 +158,23 @@ The `LoxCallable` interface abstracts callable entities (functions and built-ins
 Built-in functions (builtin_fns.go):
 - `clock()` - Returns current Unix time in milliseconds (0 parameters)
 
+### Classes and Instances (lox_class.go, lox_instance.go)
+
+**LoxClass** represents a class definition:
+- Classes are callable (implement `LoxCallable` interface) and can be instantiated
+- Calling a class (e.g., `ClassName()`) creates a new `LoxInstance`
+- Classes can be stored in variables and passed around as values
+- Classes have a name that is used for string representation
+
+**LoxInstance** represents an instance of a class:
+- Each instance has a reference to its class (`klass`)
+- Instances have a `fields` map that stores property values
+- Properties are accessed via `instance.property` (PropGetExpr)
+- Properties are set via `instance.property = value` (PropSetExpr)
+- Getting an undefined property raises a runtime error: "Undefined property name X"
+- Setting a property on a non-instance raises a runtime error: "Only instances have fields"
+- Multiple instances of the same class have independent field storage
+
 ### Runtime Abstraction (runtime.go)
 
 The `LoxRuntime` interface abstracts error reporting to allow:
@@ -181,6 +201,8 @@ The `LoxRuntime` interface abstracts error reporting to allow:
 - Type checking failures (e.g., adding string to number)
 - Undefined variable access
 - Division by zero
+- Undefined property access on instances
+- Property access/assignment on non-instances (classes, nil, numbers, strings, etc.)
 
 ## Project Structure
 
@@ -199,8 +221,10 @@ glox/
 ├── runtime.go           # Runtime error handling
 ├── runtime_error.go     # Runtime error types
 ├── return_value.go      # Return value propagation mechanism
-├── lox_callable.go      # Callable interface for functions
+├── lox_callable.go      # Callable interface for functions and classes
 ├── lox_function.go      # User-defined function implementation
+├── lox_class.go         # Class definition and instantiation
+├── lox_instance.go      # Instance property management
 ├── builtin_fns.go       # Built-in function implementations
 ├── test_utils.go        # Testing utilities
 ├── *_test.go           # Comprehensive test suites
@@ -219,6 +243,7 @@ Tests are organized by component:
 - `resolver_test.go` - Variable resolution, static error detection
 - `interpreter_test.go` - Expression evaluation, statement execution
 - `environment_test.go` - Variable scoping behavior
+- `classes_test.go` - Class definition, instantiation, and property access
 - `integration_test.go` - End-to-end program execution
 
 ### Test Utilities (test_utils.go)
@@ -245,6 +270,9 @@ Tests are organized by component:
 - Variable resolution happens before interpretation for efficient lookup and static error detection
 - Resolver stores scope distances in interpreter's `locals` map for O(1) local variable access
 - Unused variable detection: Resolver tracks variable usage and reports errors for unused local variables and function parameters
+- Classes are callable: Classes implement `LoxCallable` interface and can be instantiated by calling them like functions
+- Instances have independent field storage: Each instance maintains its own `fields` map, allowing multiple instances of the same class to have different property values
+- Property access is dynamic: Properties are accessed and set at runtime, with no compile-time checking
 - Go interfaces are used to implement the visitor pattern (vs. classes in Java)
 - Go's type system is leveraged for AST node definitions
 - Error handling follows Go conventions (returning errors vs. throwing exceptions)
@@ -262,6 +290,9 @@ Tests are organized by component:
 - **Functions**: Function declarations with parameters and return statements
 - **Function Calls**: Call expressions with argument passing and return value handling
 - **Closures**: Functions capture variables from their enclosing lexical scope
+- **Classes**: Class declarations with methods (syntax: `class ClassName { method() {} }`)
+- **Instances**: Class instantiation via constructor call (e.g., `var obj = ClassName()`)
+- **Properties**: Dynamic property access (`instance.field`) and assignment (`instance.field = value`)
 - **Print Statement**: Built-in `print` statement for output
 - **Built-in Functions**: `clock()` function for getting current time
 - **Comments**: Single-line comments with `//`
@@ -272,7 +303,9 @@ Parser implements this grammar (listed by increasing precedence):
 
 ```
 program        → declaration* EOF
-declaration    → funDecl | varDecl | statement
+declaration    → classDecl | funDecl | varDecl | statement
+classDecl      → "class" IDENTIFIER "{" method* "}"
+method         → IDENTIFIER "(" parameters? ")" block
 funDecl        → "fun" function
 function       → IDENTIFIER "(" parameters? ")" block
 parameters     → IDENTIFIER ( "," IDENTIFIER )*
@@ -281,7 +314,8 @@ statement      → exprStmt | ifStmt | printStmt | whileStmt | forStmt | returnS
 returnStmt     → "return" expression? ";"
 block          → "{" declaration* "}"
 expression     → assignment
-assignment     → IDENTIFIER "=" assignment | logic_or
+assignment     → IDENTIFIER "=" assignment | ( call "." IDENTIFIER "=" assignment ) | logic_or
+call           → primary ( "(" arguments? ")" | "." IDENTIFIER )*
 logic_or       → logic_and ( "or" logic_and )*
 logic_and      → equality ( "and" equality )*
 equality       → comparison ( ( "!=" | "==" ) comparison )*

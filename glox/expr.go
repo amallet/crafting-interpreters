@@ -9,6 +9,8 @@ type Expr interface {
 type ExprVisitor interface {
 	VisitAssignExpr(expr *AssignExpr) (any, error)
 	VisitCallExpr(expr *CallExpr) (any, error)
+	VisitPropGetExpr(expr *PropGetExpr) (any, error)
+	VisitPropSetExpr(expr *PropSetExpr) (any, error)
 	VisitBinaryExpr(expr *BinaryExpr) (any, error)
 	VisitGroupingExpr(expr *GroupingExpr) (any, error)
 	VisitLiteralExpr(expr *LiteralExpr) (any, error)
@@ -47,6 +49,27 @@ type CallExpr struct {
 
 func (c *CallExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitCallExpr(c)
+}
+
+// PropGetExpr represents an expression retrieving a property on an object
+type PropGetExpr struct {
+	object   Expr
+	propName Token
+}
+
+func (p *PropGetExpr) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitPropGetExpr(p)
+}
+
+// PropSetExpr represents an expression setting a property on an object
+type PropSetExpr struct {
+	object    Expr
+	propName  Token
+	propValue Expr
+}
+
+func (p *PropSetExpr) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitPropSetExpr(p)
 }
 
 // GroupingExpr represents a parenthesized expression: (expression)

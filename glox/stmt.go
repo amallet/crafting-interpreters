@@ -7,6 +7,7 @@ type Stmt interface {
 type StmtVisitor interface {
 	VisitExpressionStmt(stmt *ExpressionStmt) error
 	VisitFunctionStmt(stmt *FunctionStmt) error
+	VisitClassStmt(stmt *ClassStmt) error 
 	VisitIfStmt(stmt *IfStmt) error
 	VisitPrintStmt(stmt *PrintStmt) error
 	VisitWhileStmt(stmt *WhileStmt) error
@@ -22,6 +23,16 @@ type ExpressionStmt struct {
 func (e *ExpressionStmt) Accept(visitor StmtVisitor) error {
 	return visitor.VisitExpressionStmt(e)
 }
+
+type ClassStmt struct {
+	className Token
+	methods []*FunctionStmt
+}
+
+func (c *ClassStmt) Accept(visitor StmtVisitor) error {
+	return visitor.VisitClassStmt(c)
+}
+
 
 type IfStmt struct {
 	condition  Expr

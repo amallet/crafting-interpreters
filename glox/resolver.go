@@ -15,12 +15,12 @@ type variableStatus int
 
 const (
 	isDeclared variableStatus = iota
-	isDefined 
+	isDefined
 	isUsed
 )
 
 type varDecl struct {
-	token Token
+	token  Token
 	status variableStatus
 }
 
@@ -64,6 +64,14 @@ func (r *Resolver) VisitBlockStmt(stmt *BlockStmt) error {
 	err := r.resolveStmts(stmt.statements)
 	r.endScope()
 	return err
+}
+
+func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
+	if err := r.declare(stmt.className); err != nil {
+		return err
+	}
+	r.define(stmt.className)
+	return nil
 }
 
 func (r *Resolver) VisitExpressionStmt(stmt *ExpressionStmt) error {
@@ -168,6 +176,25 @@ func (r *Resolver) VisitCallExpr(expr *CallExpr) (any, error) {
 	return nil, nil
 }
 
+func (r *Resolver) VisitPropGetExpr(p *PropGetExpr) (any, error) {
+	if err := r.resolveExpr(p.object); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (r *Resolver) VisitPropSetExpr(p *PropSetExpr) (any, error) {
+	if err := r.resolveExpr(p.propValue); err != nil {
+		return nil, err
+	}
+
+	if err := r.resolveExpr(p.object); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
 func (r *Resolver) VisitGroupingExpr(expr *GroupingExpr) (any, error) {
 	return nil, r.resolveExpr(expr.Expression)
 }
@@ -192,7 +219,7 @@ func (r *Resolver) VisitUnaryExpr(expr *UnaryExpr) (any, error) {
 
 func (r *Resolver) VisitVariableExpr(expr *VariableExpr) (any, error) {
 
-	// Check that variable isn't being referenced while still in its initializer ie 
+	// Check that variable isn't being referenced while still in its initializer ie
 	// while it's been declared, but not yet defined
 	if len(r.scopes) != 0 {
 		top_scope := r.scopes[len(r.scopes)-1]
@@ -223,24 +250,24 @@ func (r *Resolver) resolveFunction(function *FunctionStmt, fnType functionType) 
 	r.currentFunction = fnType
 
 	// Function parameters and function body are in a new scope
-	var err error 
+	var err error
 	r.beginScope()
 
 	for _, param := range function.params {
 		if err = r.declare(param); err != nil {
-			_ = r.endScope() // might return error, but already in error case 
+			_ = r.endScope() // might return error, but already in error case
 			return err
 		}
 		r.define(param)
 	}
 	if err = r.resolveStmts(function.body); err != nil {
-		_ = r.endScope() // might return error, but already in error case 
+		_ = r.endScope() // might return error, but already in error case
 		return err
 	}
 	err = r.endScope()
 
 	r.currentFunction = enclosingFunction
-	return err 
+	return err
 }
 
 func (r *Resolver) resolveLocal(expr Expr, token Token) {
@@ -268,7 +295,7 @@ func (r *Resolver) declare(token Token) error {
 		return fmt.Errorf("resolver error")
 	}
 
-	current_scope[token.lexeme] = &varDecl{ token: token, status: isDeclared }
+	current_scope[token.lexeme] = &varDecl{token: token, status: isDeclared}
 
 	return nil
 }
@@ -279,7 +306,7 @@ func (r *Resolver) define(token Token) {
 	}
 
 	// Token is defined in current scope ie scope that's at the top of the stack
-	r.scopes[len(r.scopes) - 1][token.lexeme].status = isDefined
+	r.scopes[len(r.scopes)-1][token.lexeme].status = isDefined
 }
 
 func (r *Resolver) beginScope() {
@@ -287,10 +314,10 @@ func (r *Resolver) beginScope() {
 }
 
 func (r *Resolver) endScope() error {
-	
+
 	if len(r.scopes) > 0 {
 		// Check that all variables defined in this scope were actually used
-		for _, v := range r.scopes[len(r.scopes) - 1] {
+		for _, v := range r.scopes[len(r.scopes)-1] {
 			if v.status != isUsed {
 				r.runtime.parseError(v.token, "Unused variable")
 				return fmt.Errorf("unused variable")
@@ -300,5 +327,5 @@ func (r *Resolver) endScope() error {
 		r.scopes = r.scopes[:len(r.scopes)-1] // Pop top scope off the stack
 	}
 
-	return nil 
+	return nil
 }

@@ -8,7 +8,8 @@ import (
 // this is in order of *increasing* precedence.
 //
 // program        → declaration* EOF;
-// declaration    → funDecl | varDecl | statement ;
+// declaration    → classDecl | funDecl | varDecl | statement ;
+// classDecl      → "class" IDENTIFIER "(" function* ")" ;
 // funDecl        → "fun" function;
 // function       → IDENTIFIER "(" parameters? ")" block ;
 // parameters     → IDENTIFIER ("," IDENTIFIER)* ;
@@ -24,7 +25,7 @@ import (
 // returnStmt     → "return" expression? ";" ;
 // block          → "{" declaration* "}";
 // expression     → assignment ";"
-// assignment     → IDENTIFIER "=" assignment | logic_or ;
+// assignment     → ( call ".")? IDENTIFIER "=" assignment | logic_or ;
 // logic_or       → logic_and ( "or" logic_and )* ;
 // logic_and      → equality ( "and" equality )* ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )*;
@@ -32,7 +33,7 @@ import (
 // term           → factor ( ( "-" | "+" ) factor )*;
 // factor         → unary ( ( "/" | "*" ) unary )*;
 // unary          → ( "!" | "-" ) unary | | call
-// call           → primary ( "(" arguments? ")" )* ;
+// call           → primary ( "(" arguments? ")" | "." IDENTIFIER )*;
 // arguments      → expression ( "," expression )* ;
 // primary        → "true" | "false" | "nil" | NUMBER | STRING | "(" expression ")" | IDENTIFIER;
 //
@@ -77,7 +78,9 @@ func (p *Parser) declaration() (Stmt, error) {
 	var stmt Stmt
 	var err error
 
-	if p.matches(FUN) {
+	if p.matches(CLASS) {
+		stmt, err = p.classDeclaration()
+	} else if p.matches(FUN) {
 		stmt, err = p.function("function")
 	} else if p.matches(VAR) {
 		stmt, err = p.varDeclaration()
@@ -95,9 +98,38 @@ func (p *Parser) declaration() (Stmt, error) {
 	return stmt, nil
 }
 
+// class → "class" IDENTIFIER "(" function* ")";
+func (p *Parser) classDeclaration() (Stmt, error) {
+	var err error
+	var className Token
+	methods := make([]*FunctionStmt, 0)
+
+	if className, err = p.consume(IDENTIFIER, "Expect class name"); err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(LEFT_BRACE, "Expect '{' after class name"); err != nil {
+		return nil, err
+	}
+
+	for !p.nextTokenTypeIs(RIGHT_BRACE) && !p.isAtEnd() {
+		var method *FunctionStmt
+		if method, err = p.function("method"); err != nil {
+			return nil, err
+		}
+		methods = append(methods, method)
+	}
+
+	if _, err := p.consume(RIGHT_BRACE, "Expect '}' after class body"); err != nil {
+		return nil, err
+	}
+
+	return &ClassStmt{className: className, methods: methods}, nil
+}
+
 // function       → IDENTIFIER "(" parameters? ")" block ;
 // parameters     → IDENTIFIER ("," IDENTIFIER)* ;
-func (p *Parser) function(kind string) (Stmt, error) {
+func (p *Parser) function(kind string) (*FunctionStmt, error) {
 	var err error
 	var fnName Token
 
@@ -285,7 +317,7 @@ func (p *Parser) whileStatement() (Stmt, error) {
 func (p *Parser) forStatement() (Stmt, error) {
 
 	// 'for' statements are desugared by being parsed into a combination of an initialization
-	// expression and a 'while' statement that checks the loop condition, with the loop 
+	// expression and a 'while' statement that checks the loop condition, with the loop
 	// variable update put into the body of the 'while' statement
 	var loopVarInit Stmt = nil
 	var loopCondition Expr
@@ -421,7 +453,7 @@ func (p *Parser) expression() (Expr, error) {
 	return p.assignmentExpr()
 }
 
-// assignment → IDENTIFIER "=" assignment | logic_or ;
+// assignment → (call ".")? IDENTIFIER "=" assignment | logic_or ;
 func (p *Parser) assignmentExpr() (Expr, error) {
 	lhs, err := p.logicalOr()
 	if err != nil {
@@ -439,9 +471,13 @@ func (p *Parser) assignmentExpr() (Expr, error) {
 		if lvalue, ok := lhs.(*VariableExpr); ok { // LHS of assignment must be a variable
 			name := lvalue.variable
 			return &AssignExpr{name, rvalue}, nil
-		} else {
-			return nil, p.constructError(equals, "Invalid assignment target")
 		}
+		if lvalue, ok := lhs.(*PropGetExpr); ok {
+			return &PropSetExpr{lvalue.object, lvalue.propName, rvalue}, nil
+		}
+
+		return nil, p.constructError(equals, "Invalid assignment target")
+
 	}
 
 	return lhs, nil
@@ -577,7 +613,7 @@ func (p *Parser) unary() (Expr, error) {
 	}
 }
 
-// call → primary ( "(" arguments? ")" )* ;
+// call → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 func (p *Parser) call() (Expr, error) {
 	var expr Expr
 	var err error
@@ -591,6 +627,13 @@ func (p *Parser) call() (Expr, error) {
 			if expr, err = p.callArguments(expr); err != nil {
 				return nil, err
 			}
+		} else if p.matches(DOT) {
+			var propName Token
+			if propName, err = p.consume(IDENTIFIER, "Expect property name after '.'"); err != nil {
+				return nil, err
+			}
+
+			expr = &PropGetExpr{object: expr, propName: propName}
 		} else {
 			break
 		}
@@ -605,7 +648,7 @@ func (p *Parser) callArguments(callee Expr) (Expr, error) {
 	arguments := make([]Expr, 0)
 
 	if !p.nextTokenTypeIs(RIGHT_PAREN) { // check for arguments
-		// Parse first argument 
+		// Parse first argument
 		var expr Expr
 		if expr, err = p.expression(); err != nil {
 			return nil, err
