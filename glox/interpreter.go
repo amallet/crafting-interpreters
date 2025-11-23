@@ -8,8 +8,8 @@ import (
 // The Interpreter object interprets/evaluates the ASTs produced by the Parser
 type Interpreter struct {
 	lox     LoxRuntime
-	globals *Environment
-	env     *Environment
+	globalEnv *Environment
+	currentEnv     *Environment
 	locals  map[Expr]int
 }
 
@@ -18,8 +18,8 @@ func NewInterpreter(lox LoxRuntime) *Interpreter {
 	globals.defineVarValue("clock", clockFn{})
 	return &Interpreter{
 		lox:     lox,
-		globals: globals,
-		env:     globals,
+		globalEnv: globals,
+		currentEnv:     globals,
 		locals:  make(map[Expr]int),
 	}
 }
@@ -73,7 +73,7 @@ func (i *Interpreter) VisitVarStmt(stmt *VarStmt) error {
 	}
 
 	// Store the variable name and associated value
-	i.env.defineVarValue(stmt.variable.lexeme, value)
+	i.currentEnv.defineVarValue(stmt.variable.lexeme, value)
 	return nil
 }
 
@@ -83,8 +83,8 @@ func (i *Interpreter) VisitExpressionStmt(stmt *ExpressionStmt) error {
 }
 
 func (i *Interpreter) VisitFunctionStmt(stmt *FunctionStmt) error {
-	loxFn := &LoxFunction{stmt, i.env}
-	i.env.defineVarValue(stmt.functionName.lexeme, loxFn)
+	loxFn := &LoxFunction{stmt, i.currentEnv}
+	i.currentEnv.defineVarValue(stmt.functionName.lexeme, loxFn)
 	return nil
 }
 
@@ -155,9 +155,9 @@ func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
 }
 
 func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
-	i.env.defineVarValue(stmt.className.lexeme, nil)
+	i.currentEnv.defineVarValue(stmt.className.lexeme, nil)
 	klass := NewLoxClass(stmt.className.lexeme)
-	if err := i.env.assignVarValue(stmt.className, klass); err != nil {
+	if err := i.currentEnv.assignVarValue(stmt.className, klass); err != nil {
 		return err
 	}
 	return nil
@@ -168,23 +168,21 @@ func (i *Interpreter) VisitBlockStmt(stmt *BlockStmt) error {
 	// When interpreting a block, create a new environment to handle
 	// the lexical scope for that block, and use it to evaluate statements
 	// inside the block
-	blockEnv := NewEnvironment(i.env)
+	blockEnv := NewEnvironment(i.currentEnv)
 	return i.executeBlock(stmt.statements, blockEnv)
 }
 
-// Execute block of statements, within the supplied environment
+// Execute block of statements
 func (i *Interpreter) executeBlock(statements []Stmt, blockEnv *Environment) error {
-
-	prevEnv := i.env
-	i.env = blockEnv // use new environment to evaluate statements in the block
+	prevEnv := i.currentEnv
+	i.currentEnv = blockEnv // use supplied environment to evaluate statements in the block
 	var err error = nil
 	for _, stmt := range statements {
 		if err = i.execute(stmt); err != nil {
 			break
 		}
 	}
-	// Done evaluating the block, restore previous environment
-	i.env = prevEnv
+	i.currentEnv = prevEnv // Done evaluating the block, restore previous environment
 	return err
 }
 
@@ -196,11 +194,11 @@ func (i *Interpreter) VisitAssignExpr(expr *AssignExpr) (any, error) {
 
 	// If local variable, assign to the right scope
 	if distance, ok := i.locals[expr]; ok {
-		i.env.assignAt(distance, expr.variable, value)
+		i.currentEnv.assignAt(distance, expr.variable, value)
 		return value, nil
 	}
 	// Else, it's a variable in the global scope
-	if err = i.globals.assignVarValue(expr.variable, value); err != nil {
+	if err = i.globalEnv.assignVarValue(expr.variable, value); err != nil {
 		return nil, err
 	}
 
@@ -374,7 +372,7 @@ func (i *Interpreter) VisitPropSetExpr(p *PropSetExpr) (any, error) {
 	}
 
 	// Figure out actual value that property is being set to, and make
-	// sure it's something that's valid r-value
+	// sure it's a valid r-value
 	var propValue any
 	if propValue, err = i.evaluate(p.propValue); err != nil {
 		return nil, err
@@ -448,9 +446,9 @@ func (i *Interpreter) VisitVariableExpr(expr *VariableExpr) (any, error) {
 
 func (i *Interpreter) lookupVariable(name Token, expr Expr) (any, error) {
 	if dist, ok := i.locals[expr]; ok {
-		return i.env.getAt(dist, name.lexeme), nil
+		return i.currentEnv.getAt(dist, name.lexeme), nil
 	} else {
-		value, err := i.globals.getVarValue(name)
+		value, err := i.globalEnv.getVarValue(name)
 		return value, err
 	}
 }

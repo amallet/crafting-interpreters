@@ -313,8 +313,8 @@ varDecl        → "var" IDENTIFIER ("=" expression)? ";"
 statement      → exprStmt | ifStmt | printStmt | whileStmt | forStmt | returnStmt | block
 returnStmt     → "return" expression? ";"
 block          → "{" declaration* "}"
-expression     → assignment
-assignment     → IDENTIFIER "=" assignment | ( call "." IDENTIFIER "=" assignment ) | logic_or
+expression     → assignmentOrValue
+assignmentOrValue    → (call ".")? IDENTIFIER "=" assignment  | logic_or
 call           → primary ( "(" arguments? ")" | "." IDENTIFIER )*
 logic_or       → logic_and ( "or" logic_and )*
 logic_and      → equality ( "and" equality )*

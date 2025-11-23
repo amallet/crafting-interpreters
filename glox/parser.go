@@ -5,7 +5,7 @@ import (
 )
 
 // Parser implements a recursive descent parser for the following grammar. Note that
-// this is in order of *increasing* precedence.
+// this is (roughly) in order of *increasing* precedence.
 //
 // program        → declaration* EOF;
 // declaration    → classDecl | funDecl | varDecl | statement ;
@@ -24,8 +24,8 @@ import (
 //                            expression? ";" ")" statement ;
 // returnStmt     → "return" expression? ";" ;
 // block          → "{" declaration* "}";
-// expression     → assignment ";"
-// assignment     → ( call ".")? IDENTIFIER "=" assignment | logic_or ;
+// expression     → assignmentOrValue ";"
+// assignmentOrValue     → ( call ".")? IDENTIFIER "=" assignment | logic_or ;
 // logic_or       → logic_and ( "or" logic_and )* ;
 // logic_and      → equality ( "and" equality )* ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )*;
@@ -73,7 +73,7 @@ func (p *Parser) parse() ([]Stmt, error) {
 	return statements, nil
 }
 
-// declaration -> funDecl | varDecl | statement
+// declaration -> classDecl | funDecl | varDecl | statement
 func (p *Parser) declaration() (Stmt, error) {
 	var stmt Stmt
 	var err error
@@ -448,27 +448,34 @@ func (p *Parser) expressionStatement() (Stmt, error) {
 	return &ExpressionStmt{expr}, nil
 }
 
-// expression → assignment;
+// expression → assignmentOrValue;
 func (p *Parser) expression() (Expr, error) {
-	return p.assignmentExpr()
+	return p.assignmentOrValueExpr()
 }
 
-// assignment → (call ".")? IDENTIFIER "=" assignment | logic_or ;
-func (p *Parser) assignmentExpr() (Expr, error) {
+// assignmentOrValue → (call ".")? IDENTIFIER "=" assignment | logic_or ;
+func (p *Parser) assignmentOrValueExpr() (Expr, error) {
+	// Have to handle expressions that are either assignments or 'just' expressions
+	// that return a value. We don't know whether it's an assignment expression untl
+	// parser sees an '=' sign, so start off by assumng it's not an assignment and 
+	// greedily parse as much of it as possible 
 	lhs, err := p.logicalOr()
 	if err != nil {
 		return nil, err
 	}
 
-	// Handle assignment case
+	// IF there is an equal sign, it's an assignment
 	if p.matches(EQUAL) {
+		// What we have so far is the  l-value of the assignment, so need to 
+		// now parse the r-value of the assignment 
 		equals := p.previous()
-		rvalue, err := p.assignmentExpr()
+		rvalue, err := p.assignmentOrValueExpr()
 		if err != nil {
 			return nil, err
 		}
 
-		if lvalue, ok := lhs.(*VariableExpr); ok { // LHS of assignment must be a variable
+		// Only variables or instance properties can be assigned to 
+		if lvalue, ok := lhs.(*VariableExpr); ok { 
 			name := lvalue.variable
 			return &AssignExpr{name, rvalue}, nil
 		}

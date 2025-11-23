@@ -9,11 +9,17 @@ type LoxFunction struct {
 
 // Execute the actual function that's wrapped by the enclosing LoxFunction
 func (lf *LoxFunction) call(interpreter *Interpreter, arguments []any) (any, error) {
+	
+	// Create the scope within which the function will execute, as a child of the closure/scope
+	// associated with the function 
 	env := NewEnvironment(lf.closure)
+
+	// Bind parameters to their values within the function's scope 
 	for i, param := range lf.declaration.params {
 		env.defineVarValue(param.lexeme, arguments[i])
 	}
 
+	// Execute the function's code
 	err := interpreter.executeBlock(lf.declaration.body, env)
 	if err != nil {
 		// If the error returned is of type ReturnValue, then it's not 

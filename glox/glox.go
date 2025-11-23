@@ -71,6 +71,7 @@ func (l *GLox) run(source string, in_repl bool) {
 		return 
 	}
 
+	// Do some static analysis to resolve variables to the right scopes/closures
 	resolver := NewResolver(l, l.interpreter)
 	resolver.resolveStmts(statements)
 	if l.hadError {
