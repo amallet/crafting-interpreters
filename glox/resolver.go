@@ -9,6 +9,7 @@ type functionType int
 const (
 	functionTypeNone functionType = iota
 	functionTypeFunction
+	functionTypeMethod 
 )
 
 type variableStatus int
@@ -67,10 +68,28 @@ func (r *Resolver) VisitBlockStmt(stmt *BlockStmt) error {
 }
 
 func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
+	// Declare and define class itself 
 	if err := r.declare(stmt.className); err != nil {
 		return err
 	}
 	r.define(stmt.className)
+
+	// Start a new scope into which 'this' keyword can be injected, so that 
+	// methods can be bound to a class instance, and inject 'this'
+	r.beginScope()
+	r.injectThis()
+
+	// Declare and define class methods
+	for _, method := range stmt.methods {
+		if err := r.resolveFunction(method, functionTypeMethod); err != nil {
+			return err 
+		}
+	}
+
+	if err := r.endScope(); err != nil {
+		return err 
+	}
+
 	return nil
 }
 
@@ -193,6 +212,13 @@ func (r *Resolver) VisitPropSetExpr(p *PropSetExpr) (any, error) {
 	}
 
 	return nil, nil
+}
+
+func (r *Resolver) VisitThisExpr(t *ThisExpr) (any, error) {
+	// "this" is treated like a local variable that gets injected 
+	// by the resolver when the class is defined  
+	r.resolveLocal(t, t.keyword)
+	return nil, nil 
 }
 
 func (r *Resolver) VisitGroupingExpr(expr *GroupingExpr) (any, error) {
@@ -328,4 +354,11 @@ func (r *Resolver) endScope() error {
 	}
 
 	return nil
+}
+
+// injectThis defines 'this' as a local variable in the current scope
+func (r *Resolver) injectThis() {
+	currentScope := r.scopes[len(r.scopes) - 1]
+	dummyThisToken := Token{THIS, "this", nil, 0}
+	currentScope["this"] = &varDecl{dummyThisToken, isUsed}
 }

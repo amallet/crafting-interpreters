@@ -17,11 +17,19 @@ func NewLoxInstance(klass *LoxClass) *LoxInstance {
 }
 
 func (li *LoxInstance) get(token Token) (any, error) {
-	if value, ok := li.fields[token.lexeme]; !ok {
-		return nil, RuntimeError{token, fmt.Sprintf("Undefined property name %s", token.lexeme)}
-	} else {
-		return value, nil 
+	// First look for instance fields with matching name 
+	if value, ok := li.fields[token.lexeme]; ok {
+		return value, nil
 	}
+
+	// No instance field matches, look for matching method on class, and 
+	// bind it to this instance
+	if method := li.klass.findMethod(token.lexeme); method != nil {
+		boundMethod := method.bind(li)
+		return boundMethod, nil 
+	} 
+	
+	return nil, RuntimeError{token, fmt.Sprintf("undefined property name %s", token.lexeme)}
 }
 
 func (li *LoxInstance) set(token Token, value any) {

@@ -91,6 +91,7 @@ GLox processes Lox source code through four distinct stages:
 - `CallExpr` - Function calls with callee expression and argument list
 - `PropGetExpr` - Property access on instances: `instance.property`
 - `PropSetExpr` - Property assignment on instances: `instance.property = value`
+- `ThisExpr` - `this` keyword expression (refers to the current instance in a method)
 
 **Statement nodes (stmt.go)**: Implement `Stmt` interface with `Accept(StmtVisitor)` method
 - `ExpressionStmt` - Expression statements (discards result)
@@ -134,6 +135,8 @@ The `Resolver` performs static analysis to resolve variable references:
   - **Unused local variables**: `var unused = 1;` - local variables that are declared but never read or assigned to
 - Tracks function context to validate return statements are only inside functions
 - Manages scope stack to track variable declaration/definition status (prevents reading uninitialized variables)
+- **`this` keyword handling**: When resolving a class declaration, the resolver injects `this` into the method scope using `injectThis()`, allowing methods to reference the instance via `this`
+- **`this` resolution**: The `VisitThisExpr` method resolves `this` as a local variable, which will be bound to the instance when the method is called
 
 ### Function Calling (lox_callable.go, lox_function.go)
 
@@ -148,6 +151,7 @@ The `LoxCallable` interface abstracts callable entities (functions and built-ins
 - Return values are propagated via `ReturnValue` error wrapper to unwind the call stack
 - Functions can be stored in variables and passed as values
 - Functions can access and modify variables from their enclosing scope even after that scope exits
+- **Method binding**: When a method is accessed on an instance, `LoxInstance.get()` calls `bind()` to create a bound method before returning it, enabling methods to access instance state
 
 **Closures**: Functions capture variables from their lexical environment. This enables:
 - Functions returning other functions that maintain independent state
@@ -174,6 +178,9 @@ Built-in functions (builtin_fns.go):
 - Getting an undefined property raises a runtime error: "Undefined property name X"
 - Setting a property on a non-instance raises a runtime error: "Only instances have fields"
 - Multiple instances of the same class have independent field storage
+- Methods are defined in class declarations: `class ClassName { methodName() { ... } }`
+- Methods are accessed via `instance.method` and are automatically bound to the instance
+
 
 ### Runtime Abstraction (runtime.go)
 
@@ -195,14 +202,17 @@ The `LoxRuntime` interface abstracts error reporting to allow:
   - Returning from top-level code
   - Variable redeclaration in same scope
   - Unused local variables (declared but never read or assigned to)
+  - Using `this` outside of a class (if validation is implemented)
 - Execution stops if resolver errors are detected
 
 **Runtime errors**: Wrapped in `RuntimeError` type with token location
 - Type checking failures (e.g., adding string to number)
-- Undefined variable access
+- Undefined variable access (including `this` when used outside a method context)
 - Division by zero
 - Undefined property access on instances
 - Property access/assignment on non-instances (classes, nil, numbers, strings, etc.)
+- Calling undefined methods on instances
+- Method arity mismatches (wrong number of arguments)
 
 ## Project Structure
 
@@ -273,6 +283,10 @@ Tests are organized by component:
 - Classes are callable: Classes implement `LoxCallable` interface and can be instantiated by calling them like functions
 - Instances have independent field storage: Each instance maintains its own `fields` map, allowing multiple instances of the same class to have different property values
 - Property access is dynamic: Properties are accessed and set at runtime, with no compile-time checking
+- Methods are bound to instances: When a method is accessed on an instance (e.g., `instance.method`), `LoxInstance.get()` calls `LoxFunction.bind()` to create a bound method with `this` bound to that instance
+- Method binding: The `bind()` method creates a new `LoxFunction` with an environment that has `this` defined as the instance, enabling methods to access instance state
+- `this` keyword: The resolver injects `this` into the scope when resolving methods within a class declaration, and the interpreter resolves `this` as a variable lookup
+- `this` in closures: When methods are stored in closures, `this` is correctly captured and refers to the original instance even when the method is called later
 - Go interfaces are used to implement the visitor pattern (vs. classes in Java)
 - Go's type system is leveraged for AST node definitions
 - Error handling follows Go conventions (returning errors vs. throwing exceptions)
@@ -293,6 +307,8 @@ Tests are organized by component:
 - **Classes**: Class declarations with methods (syntax: `class ClassName { method() {} }`)
 - **Instances**: Class instantiation via constructor call (e.g., `var obj = ClassName()`)
 - **Properties**: Dynamic property access (`instance.field`) and assignment (`instance.field = value`)
+- **Methods**: Methods defined on classes can be called on instances (e.g., `instance.method()`)
+- **This Keyword**: The `this` keyword refers to the current instance within a method, enabling methods to access instance fields and call other methods
 - **Print Statement**: Built-in `print` statement for output
 - **Built-in Functions**: `clock()` function for getting current time
 - **Comments**: Single-line comments with `//`
@@ -325,7 +341,7 @@ factor         → unary ( ( "/" | "*" ) unary )*
 unary          → ( "!" | "-" ) unary | call
 call           → primary ( "(" arguments? ")" )*
 arguments      → expression ( "," expression )*
-primary        → "true" | "false" | "nil" | NUMBER | STRING | "(" expression ")" | IDENTIFIER
+primary        → "true" | "false" | "nil" | "this" | NUMBER | STRING | "(" expression ")" | IDENTIFIER
 ```
 
 Precedence levels (lowest to highest):
@@ -455,4 +471,77 @@ fun outer() {
 
 var getMessage = outer();
 print getMessage();  // "captured"
+```
+
+**Classes with Methods and This**
+```lox
+// Basic class with methods
+class Person {
+    getName() {
+        return this.name;
+    }
+    setName(name) {
+        this.name = name;
+    }
+}
+
+var person = Person();
+person.setName("Alice");
+print person.getName();  // "Alice"
+
+// Method chaining with this
+class Counter {
+    increment() {
+        this.value = this.value + 1;
+        return this;  // Return this for chaining
+    }
+    getValue() {
+        return this.value;
+    }
+}
+
+var counter = Counter();
+counter.value = 0;
+counter.increment().increment().increment();
+print counter.getValue();  // 3
+
+// Methods calling other methods
+class Math {
+    double(n) {
+        return n * 2;
+    }
+    quadruple(n) {
+        return this.double(this.double(n));
+    }
+}
+
+var math = Math();
+print math.quadruple(5);  // 20
+
+// Methods stored in variables (bound methods)
+class Greeter {
+    greet() {
+        return "Hello, " + this.name;
+    }
+}
+
+var greeter = Greeter();
+greeter.name = "World";
+var greetFn = greeter.greet;  // Method is bound to instance
+print greetFn();  // "Hello, World"
+
+// Methods in closures
+class Counter {
+    getClosure() {
+        fun closure() {
+            return this.value;
+        }
+        return closure;
+    }
+}
+
+var counter = Counter();
+counter.value = 42;
+var closure = counter.getClosure();
+print closure();  // 42 (this is correctly captured)
 ```

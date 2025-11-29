@@ -156,7 +156,14 @@ func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
 
 func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
 	i.currentEnv.defineVarValue(stmt.className.lexeme, nil)
-	klass := NewLoxClass(stmt.className.lexeme)
+
+	methods := make(map[string]*LoxFunction)
+	for _, method := range stmt.methods {
+		function := &LoxFunction{method, i.currentEnv}
+		methods[method.functionName.lexeme] = function
+	}
+
+	klass := NewLoxClass(stmt.className.lexeme, methods)
 	if err := i.currentEnv.assignVarValue(stmt.className, klass); err != nil {
 		return err
 	}
@@ -385,6 +392,10 @@ func (i *Interpreter) VisitPropSetExpr(p *PropSetExpr) (any, error) {
 	instance.set(p.propName, propValue)
 
 	return propValue, nil
+}
+
+func (i *Interpreter) VisitThisExpr(t *ThisExpr) (any, error) {
+	return i.lookupVariable(t.keyword, t)
 }
 
 // Evaluate expressions in parentheses

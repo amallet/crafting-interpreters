@@ -38,3 +38,11 @@ func (lf *LoxFunction) call(interpreter *Interpreter, arguments []any) (any, err
 func (lf *LoxFunction) arity() int {
 	return len(lf.declaration.params)
 }
+
+// bind() binds the 'this' variable for the given function instance to the 
+// supplied class instance,  
+func (lf *LoxFunction) bind(li *LoxInstance) *LoxFunction {
+	env := NewEnvironment(lf.closure)
+	env.defineVarValue("this", li)
+	return &LoxFunction{lf.declaration, env}
+}

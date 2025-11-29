@@ -35,7 +35,7 @@ import (
 // unary          → ( "!" | "-" ) unary | | call
 // call           → primary ( "(" arguments? ")" | "." IDENTIFIER )*;
 // arguments      → expression ( "," expression )* ;
-// primary        → "true" | "false" | "nil" | NUMBER | STRING | "(" expression ")" | IDENTIFIER;
+// primary        → "true" | "false" | "nil" | "this" | NUMBER | STRING | "(" expression ")" | IDENTIFIER;
 //
 // The grammar follows operator precedence with the following precedence levels
 // (from lowest to highest):
@@ -682,7 +682,7 @@ func (p *Parser) callArguments(callee Expr) (Expr, error) {
 	return &CallExpr{callee, paren, arguments}, nil
 }
 
-// primary → "true" | "false" | "nil" | NUMBER | STRING |"(" expression ")" | IDENTIFIER;
+// primary → "true" | "false" | "nil" | "this" | NUMBER | STRING |"(" expression ")" | IDENTIFIER;
 func (p *Parser) primary() (Expr, error) {
 	if p.matches(TRUE) {
 		return &LiteralExpr{true}, nil
@@ -702,6 +702,10 @@ func (p *Parser) primary() (Expr, error) {
 
 	if p.matches(IDENTIFIER) {
 		return &VariableExpr{p.previous()}, nil
+	}
+	
+	if p.matches(THIS) {
+		return &ThisExpr{p.previous()}, nil 
 	}
 
 	if p.matches(LEFT_PAREN) {

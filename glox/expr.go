@@ -17,6 +17,7 @@ type ExprVisitor interface {
 	VisitLogicalExpr(expr *LogicalExpr) (any, error)
 	VisitUnaryExpr(expr *UnaryExpr) (any, error)
 	VisitVariableExpr(expr *VariableExpr) (any, error)
+	VisitThisExpr(expr *ThisExpr) (any, error)
 }
 
 // AssignExpr represents an assignment expression
@@ -118,4 +119,13 @@ type VariableExpr struct {
 
 func (v *VariableExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitVariableExpr(v)
+}
+
+// ThisExpr represents 'this' keyword
+type ThisExpr struct {
+	keyword Token 
+}
+
+func (t *ThisExpr) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitThisExpr(t)
 }
