@@ -585,6 +585,48 @@ notInstance.method();
 `
 		runProgramAndExpectError(t, program, "Only instances have properties", "Call method on non-instance")
 	})
+
+	t.Run("Duplicate method names", func(t *testing.T) {
+		program := `
+class Foo {
+    method() {
+        return 1;
+    }
+    method() {
+        return 2;
+    }
+}
+`
+		runProgramAndExpectError(t, program, "method with this name already exists", "Duplicate method names")
+	})
+
+	t.Run("Duplicate getter names", func(t *testing.T) {
+		program := `
+class Foo {
+    value {
+        return 1;
+    }
+    value {
+        return 2;
+    }
+}
+`
+		runProgramAndExpectError(t, program, "method with this name already exists", "Duplicate getter names")
+	})
+
+	t.Run("Getter and method with same name", func(t *testing.T) {
+		program := `
+class Foo {
+    value {
+        return 1;
+    }
+    value() {
+        return 2;
+    }
+}
+`
+		runProgramAndExpectError(t, program, "method with this name already exists", "Getter and method with same name")
+	})
 }
 
 func TestMethodVsField(t *testing.T) {
@@ -1243,5 +1285,177 @@ class Foo {
 `
 		runProgramAndExpectError(t, program, "can't return a value from an initializer", "Init returning in conditional")
 	})
+}
 
+func TestGetterFunctions(t *testing.T) {
+	t.Run("Basic getter function", func(t *testing.T) {
+		program := `
+class Foo {
+    value {
+        return 42;
+    }
+}
+var foo = Foo();
+print foo.value;
+`
+		expected := []string{"42"}
+		runProgramAndCheckOutput(t, program, expected, "Basic getter function")
+	})
+
+	t.Run("Getter using this", func(t *testing.T) {
+		program := `
+class Person {
+    name {
+        return this._name;
+    }
+}
+var person = Person();
+person._name = "Bob";
+print person.name;
+`
+		expected := []string{"Bob"}
+		runProgramAndCheckOutput(t, program, expected, "Getter using this")
+	})
+
+	t.Run("Getter calling other methods", func(t *testing.T) {
+		program := `
+class Calculator {
+    result {
+        return this.compute();
+    }
+    compute() {
+        return 10 + 20;
+    }
+}
+var calc = Calculator();
+print calc.result;
+`
+		expected := []string{"30"}
+		runProgramAndCheckOutput(t, program, expected, "Getter calling other methods")
+	})
+
+	t.Run("Getter with computed value", func(t *testing.T) {
+		program := `
+class Rectangle {
+    init(w, h) {
+        this.width = w;
+        this.height = h;
+    }
+    area {
+        return this.width * this.height;
+    }
+}
+var rect = Rectangle(5, 3);
+print rect.area;
+`
+		expected := []string{"15"}
+		runProgramAndCheckOutput(t, program, expected, "Getter with computed value")
+	})
+
+	t.Run("Field shadows getter", func(t *testing.T) {
+		program := `
+class Foo {
+    value {
+        return "getter";
+    }
+}
+var foo = Foo();
+foo.value = "field";
+print foo.value;
+`
+		expected := []string{"field"}
+		runProgramAndCheckOutput(t, program, expected, "Field shadows getter")
+	})
+
+	t.Run("Getter when field not set", func(t *testing.T) {
+		program := `
+class Foo {
+    value {
+        return "getter";
+    }
+}
+var foo = Foo();
+print foo.value;
+`
+		expected := []string{"getter"}
+		runProgramAndCheckOutput(t, program, expected, "Getter when field not set")
+	})
+
+	t.Run("Getter with side effects", func(t *testing.T) {
+		program := `
+class Counter {
+    init() {
+        this.count = 0;
+    }
+    value {
+        this.count = this.count + 1;
+        return this.count;
+    }
+}
+var counter = Counter();
+print counter.value;
+print counter.value;
+print counter.value;
+`
+		expected := []string{"1", "2", "3"}
+		runProgramAndCheckOutput(t, program, expected, "Getter with side effects")
+	})
+
+	t.Run("Getter calling other getters", func(t *testing.T) {
+		program := `
+class Point {
+    init(x, y) {
+        this._x = x;
+        this._y = y;
+    }
+    x {
+        return this._x;
+    }
+    y {
+        return this._y;
+    }
+    distance {
+        return this.x + this.y;
+    }
+}
+var point = Point(3, 4);
+print point.distance;
+`
+		expected := []string{"7"}
+		runProgramAndCheckOutput(t, program, expected, "Getter calling other getters")
+	})
+
+	t.Run("Getter with empty body", func(t *testing.T) {
+		program := `
+class Foo {
+    value {}
+}
+var foo = Foo();
+print foo.value;
+`
+		expected := []string{"<nil>"}
+		runProgramAndCheckOutput(t, program, expected, "Getter with empty body")
+	})
+}
+
+func TestGetterErrors(t *testing.T) {
+	t.Run("Getter outside class", func(t *testing.T) {
+		program := `
+fun getter {
+    return 42;
+}
+`
+		runProgramAndExpectError(t, program, "getter function has to be inside a class", "Getter outside class")
+	})
+
+	t.Run("Init as getter", func(t *testing.T) {
+		program := `
+class Foo {
+    init {
+        return 42;
+    }
+}
+`
+		runProgramAndExpectError(t, program, "init function must have parameter list", "Init as getter")
+	})
 }

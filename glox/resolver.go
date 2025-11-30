@@ -89,12 +89,22 @@ func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
 	r.define(stmt.className)
 
 	// Start a new scope into which 'this' keyword can be injected, so that 
-	// methods can be bound to a class instance, and inject 'this'
+	// methods can be bound to a class instance, and then inject 'this'
 	r.beginScope()
 	r.injectThis()
 
 	// Declare and define class methods
+	methodNames := make(map[string]bool)
 	for _, method := range stmt.methods {
+		// Prevent multiple declarations of methods with the same name 
+		if _, ok := methodNames[method.functionName.lexeme]; ok {
+			_ = r.endScope()
+			r.runtime.parseError(method.functionName,"method with this name already exists")
+			return fmt.Errorf("method with name %s already exists", method.functionName.lexeme)
+		} else {
+			methodNames[method.functionName.lexeme] = true 
+		}
+
 		fnType := functionTypeMethod 
 		if method.functionName.lexeme == "init" {
 			fnType = functionTypeInitializer 
@@ -152,7 +162,7 @@ func (r *Resolver) VisitReturnStmt(stmt *ReturnStmt) error {
 			r.interpreter.lox.error(stmt.keyword.line, "can't return a value from an initializer")
 			return fmt.Errorf("can't return a value from an initializer")
 		}
-		
+
 		if err := r.resolveExpr(stmt.returnValue); err != nil {
 			return err
 		}
@@ -303,12 +313,20 @@ func (r *Resolver) VisitFunctionStmt(stmt *FunctionStmt) error {
 }
 
 func (r *Resolver) resolveFunction(function *FunctionStmt, fnType functionType) error {
+
 	enclosingFunction := r.currentFunctionType
 	r.currentFunctionType = fnType
 
 	// Function parameters and function body are in a new scope
 	var err error
 	r.beginScope()
+
+	// If it's a getter function, need to be inside a class
+	if function.isGetter && r.currentClassType == classTypeNone {
+		_ = r.endScope() // might return error, but already in error case
+		r.runtime.parseError(function.functionName,"getter function has to be inside a class")
+		return fmt.Errorf("getter function has to be inside a class")
+	}
 
 	for _, param := range function.params {
 		if err = r.declare(param); err != nil {

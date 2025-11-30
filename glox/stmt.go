@@ -42,6 +42,7 @@ type IfStmt struct {
 
 type FunctionStmt struct {
 	functionName Token
+	isGetter bool 
 	params       []Token
 	body         []Stmt
 }

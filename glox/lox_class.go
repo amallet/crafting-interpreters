@@ -13,7 +13,7 @@ func NewLoxClass(name string, methods map[string]*LoxFunction) *LoxClass {
 func (lc *LoxClass) call(i *Interpreter, arguments []any) (any, error) {
 	
 	// construct the instance
-	instance := NewLoxInstance(lc)
+	instance := NewLoxInstance(i, lc)
 
 	// If class has an init() function, call it to do any instance initialization needed
 	if initializer := lc.findMethod("init"); initializer != nil {

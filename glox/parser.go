@@ -11,7 +11,7 @@ import (
 // declaration    → classDecl | funDecl | varDecl | statement ;
 // classDecl      → "class" IDENTIFIER "(" function* ")" ;
 // funDecl        → "fun" function;
-// function       → IDENTIFIER "(" parameters? ")" block ;
+// function       → IDENTIFIER ("(" parameters? ")")? block ;
 // parameters     → IDENTIFIER ("," IDENTIFIER)* ;
 // varDecl        → "var" IDENTIFIER ("=" expression)? ";" ;
 // statement	  → exprStmt | ifStmt | printStmt | whileStmt | forStmt | returnStmt | block;
@@ -127,43 +127,56 @@ func (p *Parser) classDeclaration() (Stmt, error) {
 	return &ClassStmt{className: className, methods: methods}, nil
 }
 
-// function       → IDENTIFIER "(" parameters? ")" block ;
+// function       → IDENTIFIER ("(" parameters? ")")? block ;
 // parameters     → IDENTIFIER ("," IDENTIFIER)* ;
 func (p *Parser) function(kind string) (*FunctionStmt, error) {
 	var err error
 	var fnName Token
+	var fnParams []Token
 
 	// Parse function name
 	if fnName, err = p.consume(IDENTIFIER, "Expect "+kind+" name."); err != nil {
 		return nil, err
 	}
 
-	// Parse function params
-	if _, err = p.consume(LEFT_PAREN, "Expect '(' after "+kind+" name."); err != nil {
-		return nil, err
-	}
+	// A 'getter' is modeled as a function with no parameter list, so parsing needs to handle
+	// functions with and without parameter lists 
+	isGetter := true 
+	if p.nextTokenTypeIs(LEFT_PAREN) { 
+		isGetter = false // regular function, with (possibly empty) parameter list
 
-	fnParams := make([]Token, 0)
-	if !p.nextTokenTypeIs(RIGHT_PAREN) {
-		var parameter Token
-		if parameter, err = p.consume(IDENTIFIER, "Expect parameter name."); err != nil {
+		// Parse function params
+		if _, err = p.consume(LEFT_PAREN, "Expect '(' after "+kind+" name."); err != nil {
 			return nil, err
 		}
-		fnParams = append(fnParams, parameter)
 
-		for p.matches(COMMA) {
-			if len(fnParams) >= 255 {
-				return nil, p.constructError(p.peek(), "Can't have more than 255 parameters.")
-			}
+		fnParams = make([]Token, 0)
+		if !p.nextTokenTypeIs(RIGHT_PAREN) {
+			var parameter Token
 			if parameter, err = p.consume(IDENTIFIER, "Expect parameter name."); err != nil {
 				return nil, err
 			}
 			fnParams = append(fnParams, parameter)
-		}
 
+			for p.matches(COMMA) {
+				if len(fnParams) >= 255 {
+					return nil, p.constructError(p.peek(), "Can't have more than 255 parameters.")
+				}
+				if parameter, err = p.consume(IDENTIFIER, "Expect parameter name."); err != nil {
+					return nil, err
+				}
+				fnParams = append(fnParams, parameter)
+			}
+
+		}
+		if _, err = p.consume(RIGHT_PAREN, "Expect ')' after parameters. "); err != nil {
+			return nil, err
+		}
 	}
-	if _, err = p.consume(RIGHT_PAREN, "Expect ')' after parameters. "); err != nil {
-		return nil, err
+
+	// init method must always have parameter list, even if it's empty 
+	if fnName.lexeme == "init" && isGetter {
+		return nil, p.constructError(p.previous(),"init function must have parameter list")
 	}
 
 	// Parse function body
@@ -176,7 +189,7 @@ func (p *Parser) function(kind string) (*FunctionStmt, error) {
 		return nil, err
 	}
 
-	return &FunctionStmt{fnName, fnParams, fnBody}, nil
+	return &FunctionStmt{fnName, isGetter, fnParams, fnBody}, nil
 }
 
 // varDecl → "var" IDENTIFIER ("=" expression)? ";" ;
@@ -457,8 +470,8 @@ func (p *Parser) expression() (Expr, error) {
 func (p *Parser) assignmentOrValueExpr() (Expr, error) {
 	// Have to handle expressions that are either assignments or 'just' expressions
 	// that return a value. We don't know whether it's an assignment expression untl
-	// parser sees an '=' sign, so start off by assumng it's not an assignment and 
-	// greedily parse as much of it as possible 
+	// parser sees an '=' sign, so start off by assumng it's not an assignment and
+	// greedily parse as much of it as possible
 	lhs, err := p.logicalOr()
 	if err != nil {
 		return nil, err
@@ -466,24 +479,24 @@ func (p *Parser) assignmentOrValueExpr() (Expr, error) {
 
 	// IF there is an equal sign, it's an assignment
 	if p.matches(EQUAL) {
-		// What we have so far is the  l-value of the assignment, so need to 
-		// now parse the r-value of the assignment 
+		// What we have so far is the  l-value of the assignment, so need to
+		// now parse the r-value of the assignment
 		equals := p.previous()
 		rvalue, err := p.assignmentOrValueExpr()
 		if err != nil {
 			return nil, err
 		}
 
-		// Only variables or instance properties can be assigned to 
-		if lvalue, ok := lhs.(*VariableExpr); ok { 
+		// Only variables or instance properties can be assigned to
+		switch lvalue := lhs.(type) {
+		case *VariableExpr:
 			name := lvalue.variable
 			return &AssignExpr{name, rvalue}, nil
-		}
-		if lvalue, ok := lhs.(*PropGetExpr); ok {
+		case *PropGetExpr:
 			return &PropSetExpr{lvalue.object, lvalue.propName, rvalue}, nil
+		default:
+			return nil, p.constructError(equals, "Invalid assignment target")
 		}
-
-		return nil, p.constructError(equals, "Invalid assignment target")
 
 	}
 
@@ -703,9 +716,9 @@ func (p *Parser) primary() (Expr, error) {
 	if p.matches(IDENTIFIER) {
 		return &VariableExpr{p.previous()}, nil
 	}
-	
+
 	if p.matches(THIS) {
-		return &ThisExpr{p.previous()}, nil 
+		return &ThisExpr{p.previous()}, nil
 	}
 
 	if p.matches(LEFT_PAREN) {

@@ -5,12 +5,14 @@ import (
 )
 
 type LoxInstance struct {
+	interpreter *Interpreter
 	class *LoxClass // class that this is an instance of 
 	fields map[string]any
 }
 
-func NewLoxInstance(class *LoxClass) *LoxInstance {
+func NewLoxInstance(interpreter *Interpreter, class *LoxClass) *LoxInstance {
 	return &LoxInstance{
+		interpreter: interpreter, 
 		class: class,
 		fields: make(map[string]any),
 	}
@@ -26,6 +28,13 @@ func (li *LoxInstance) get(token Token) (any, error) {
 	// bind it to this instance
 	if method := li.class.findMethod(token.lexeme); method != nil {
 		boundMethod := method.bind(li)
+		// If the method is a getter function, execute it immediately, to generate
+		// the return value from the getter
+		if method.declaration.isGetter {
+			return boundMethod.call(li.interpreter, nil)
+		}
+
+		// Otherwise, just return the function itself 
 		return boundMethod, nil 
 	} 
 	

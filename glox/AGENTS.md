@@ -184,6 +184,18 @@ Built-in functions (builtin_fns.go):
 - Methods are defined in class declarations: `class ClassName { methodName() { ... } }`
 - Methods are accessed via `instance.method` and are automatically bound to the instance
 
+**Getter Functions**:
+- Getter functions are methods with no parameter list that execute immediately when accessed
+- Syntax: `class ClassName { propertyName { <code that returns a value> }` (no parentheses after the name)
+- Getters are accessed like properties: `instance.propertyName` (not `instance.propertyName()`)
+- When a property is accessed, if no field exists with that name, the class is checked for a getter with that name
+- If a getter is found, it is executed immediately and its return value is used
+- Getters can use `this`, call other methods, access fields, and use all language features
+- Fields shadow getters: if an instance field exists with the same name, the field is returned instead of calling the getter
+- Getters must be defined inside a class (cannot be top-level functions)
+- Getters cannot have the same name as regular methods in the same class (duplicate method names are not allowed)
+- The `init()` method cannot be a getter (it must have a parameter list, even if empty)
+
 **Initializers (init() method)**:
 - The `init()` method is a special constructor method that is called automatically when a class is instantiated
 - Syntax: `class ClassName { init(parameters) { ... } }`
@@ -217,6 +229,8 @@ The `LoxRuntime` interface abstracts error reporting to allow:
   - Unused local variables (declared but never read or assigned to)
   - Using `this` outside of a class (if validation is implemented)
   - Returning a value from an initializer (`init()` method cannot return values)
+  - Duplicate method names in the same class (including getters and cross-type duplicates)
+  - Getter functions defined outside of a class
 - Execution stops if resolver errors are detected
 
 **Runtime errors**: Wrapped in `RuntimeError` type with token location
@@ -300,6 +314,8 @@ Tests are organized by component:
 - Property access is dynamic: Properties are accessed and set at runtime, with no compile-time checking
 - Methods are bound to instances: When a method is accessed on an instance (e.g., `instance.method`), `LoxInstance.get()` calls `LoxFunction.bind()` to create a bound method with `this` bound to that instance
 - Method binding: The `bind()` method creates a new `LoxFunction` with an environment that has `this` defined as the instance, enabling methods to access instance state
+- Getter execution: When a property is accessed on an instance, `LoxInstance.get()` first checks for a field, then checks for a method. If the method is a getter (`isGetter` flag), it executes immediately and returns the result instead of returning the function
+- Duplicate method detection: The resolver tracks method names during class resolution and reports an error if duplicate method names are found (applies to regular methods, getters, and cross-type duplicates)
 - `this` keyword: The resolver injects `this` into the scope when resolving methods within a class declaration, and the interpreter resolves `this` as a variable lookup
 - `this` in closures: When methods are stored in closures, `this` is correctly captured and refers to the original instance even when the method is called later
 - Go interfaces are used to implement the visitor pattern (vs. classes in Java)
@@ -324,6 +340,7 @@ Tests are organized by component:
 - **Initializers**: The `init()` method acts as a constructor that is automatically called during instantiation (e.g., `class Point { init(x, y) { this.x = x; this.y = y; } }`)
 - **Properties**: Dynamic property access (`instance.field`) and assignment (`instance.field = value`)
 - **Methods**: Methods defined on classes can be called on instances (e.g., `instance.method()`)
+- **Getter Functions**: Getter functions are methods with no parameter list that execute immediately when accessed as properties (e.g., `class Foo { value { return 42; } }` accessed as `instance.value`)
 - **This Keyword**: The `this` keyword refers to the current instance within a method, enabling methods to access instance fields and call other methods
 - **Print Statement**: Built-in `print` statement for output
 - **Built-in Functions**: `clock()` function for getting current time
@@ -337,7 +354,7 @@ Parser implements this grammar (listed by increasing precedence):
 program        → declaration* EOF
 declaration    → classDecl | funDecl | varDecl | statement
 classDecl      → "class" IDENTIFIER "{" method* "}"
-method         → IDENTIFIER "(" parameters? ")" block
+method         → IDENTIFIER ("(" parameters? ")")? block
 funDecl        → "fun" function
 function       → IDENTIFIER "(" parameters? ")" block
 parameters     → IDENTIFIER ( "," IDENTIFIER )*
@@ -636,4 +653,75 @@ var foo = Foo(42);
 var result = foo.init(100);  // Can call init() explicitly
 print result.value;  // 100
 print foo.value;     // 100
+```
+
+**Classes with Getter Functions**
+```lox
+// Basic getter function
+class Foo {
+    value {
+        return 42;
+    }
+}
+var foo = Foo();
+print foo.value;  // 42 (getter executes immediately)
+
+// Getter using this
+class Person {
+    name {
+        return this._name;
+    }
+}
+var person = Person();
+person._name = "Alice";
+print person.name;  // "Alice"
+
+// Getter with computed value
+class Rectangle {
+    init(w, h) {
+        this.width = w;
+        this.height = h;
+    }
+    area {
+        return this.width * this.height;
+    }
+}
+var rect = Rectangle(5, 3);
+print rect.area;  // 15
+
+// Field shadows getter
+class Foo {
+    value {
+        return "getter";
+    }
+}
+var foo = Foo();
+foo.value = "field";
+print foo.value;  // "field" (field takes precedence)
+
+// Getter calling other methods
+class Calculator {
+    result {
+        return this.compute();
+    }
+    compute() {
+        return 10 + 20;
+    }
+}
+var calc = Calculator();
+print calc.result;  // 30
+
+// Getter vs regular method
+class Foo {
+    getter {
+        return "getter result";
+    }
+    method() {
+        return "method result";
+    }
+}
+var foo = Foo();
+print foo.getter;      // "getter result" (executes immediately)
+var method = foo.method;
+print method();        // "method result" (returns function)
 ```
