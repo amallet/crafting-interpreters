@@ -83,7 +83,7 @@ func (i *Interpreter) VisitExpressionStmt(stmt *ExpressionStmt) error {
 }
 
 func (i *Interpreter) VisitFunctionStmt(stmt *FunctionStmt) error {
-	loxFn := &LoxFunction{stmt, i.currentEnv}
+	loxFn := &LoxFunction{stmt, i.currentEnv, false}
 	i.currentEnv.defineVarValue(stmt.functionName.lexeme, loxFn)
 	return nil
 }
@@ -159,12 +159,12 @@ func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
 
 	methods := make(map[string]*LoxFunction)
 	for _, method := range stmt.methods {
-		function := &LoxFunction{method, i.currentEnv}
+		function := &LoxFunction{method, i.currentEnv, method.functionName.lexeme == "init"}
 		methods[method.functionName.lexeme] = function
 	}
 
-	klass := NewLoxClass(stmt.className.lexeme, methods)
-	if err := i.currentEnv.assignVarValue(stmt.className, klass); err != nil {
+	class := NewLoxClass(stmt.className.lexeme, methods)
+	if err := i.currentEnv.assignVarValue(stmt.className, class); err != nil {
 		return err
 	}
 	return nil

@@ -5,6 +5,7 @@ package main
 type LoxFunction struct {
 	declaration *FunctionStmt
 	closure *Environment 
+	isInitializer bool
 }
 
 // Execute the actual function that's wrapped by the enclosing LoxFunction
@@ -26,6 +27,12 @@ func (lf *LoxFunction) call(interpreter *Interpreter, arguments []any) (any, err
 		// really an error, but a  wrapper for the actual return value of the 
 		// function code that was just interpreted, so that's what's returned
 		if retValue, ok := err.(*ReturnValue); ok {
+			
+			// init() function returns initialized instance
+			if lf.isInitializer {
+				return lf.closure.getAt(0, "this"), nil 
+			}
+
 			return retValue.value, nil 
 		} else { 
 			return nil, err
@@ -44,5 +51,5 @@ func (lf *LoxFunction) arity() int {
 func (lf *LoxFunction) bind(li *LoxInstance) *LoxFunction {
 	env := NewEnvironment(lf.closure)
 	env.defineVarValue("this", li)
-	return &LoxFunction{lf.declaration, env}
+	return &LoxFunction{lf.declaration, env, lf.isInitializer}
 }

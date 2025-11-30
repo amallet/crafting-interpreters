@@ -137,6 +137,8 @@ The `Resolver` performs static analysis to resolve variable references:
 - Manages scope stack to track variable declaration/definition status (prevents reading uninitialized variables)
 - **`this` keyword handling**: When resolving a class declaration, the resolver injects `this` into the method scope using `injectThis()`, allowing methods to reference the instance via `this`
 - **`this` resolution**: The `VisitThisExpr` method resolves `this` as a local variable, which will be bound to the instance when the method is called
+- **Initializer detection**: The resolver tracks when it's inside an `init()` method using `functionTypeInitializer` to enforce that initializers cannot return values
+
 
 ### Function Calling (lox_callable.go, lox_function.go)
 
@@ -152,6 +154,7 @@ The `LoxCallable` interface abstracts callable entities (functions and built-ins
 - Functions can be stored in variables and passed as values
 - Functions can access and modify variables from their enclosing scope even after that scope exits
 - **Method binding**: When a method is accessed on an instance, `LoxInstance.get()` calls `bind()` to create a bound method before returning it, enabling methods to access instance state
+
 
 **Closures**: Functions capture variables from their lexical environment. This enables:
 - Functions returning other functions that maintain independent state
@@ -181,6 +184,16 @@ Built-in functions (builtin_fns.go):
 - Methods are defined in class declarations: `class ClassName { methodName() { ... } }`
 - Methods are accessed via `instance.method` and are automatically bound to the instance
 
+**Initializers (init() method)**:
+- The `init()` method is a special constructor method that is called automatically when a class is instantiated
+- Syntax: `class ClassName { init(parameters) { ... } }`
+- The `init()` method can accept optional parameters that are passed during instantiation (e.g., `ClassName(arg1, arg2)`)
+- The `init()` method always returns the initialized instance (cannot return any other value)
+- If `init()` has an explicit `return` statement without a value, it still returns the instance
+- The `init()` method can be called explicitly as a regular method on an existing instance (e.g., `instance.init(args)`)
+- The resolver detects and reports errors when `init()` attempts to return a value (e.g., `return "value"` is not allowed)
+- The `init()` method can access and modify instance fields using `this`, call other methods, and use all language features
+
 
 ### Runtime Abstraction (runtime.go)
 
@@ -203,6 +216,7 @@ The `LoxRuntime` interface abstracts error reporting to allow:
   - Variable redeclaration in same scope
   - Unused local variables (declared but never read or assigned to)
   - Using `this` outside of a class (if validation is implemented)
+  - Returning a value from an initializer (`init()` method cannot return values)
 - Execution stops if resolver errors are detected
 
 **Runtime errors**: Wrapped in `RuntimeError` type with token location
@@ -213,6 +227,7 @@ The `LoxRuntime` interface abstracts error reporting to allow:
 - Property access/assignment on non-instances (classes, nil, numbers, strings, etc.)
 - Calling undefined methods on instances
 - Method arity mismatches (wrong number of arguments)
+- Initializer arity mismatches (wrong number of arguments when instantiating a class with `init()`)
 
 ## Project Structure
 
@@ -306,6 +321,7 @@ Tests are organized by component:
 - **Closures**: Functions capture variables from their enclosing lexical scope
 - **Classes**: Class declarations with methods (syntax: `class ClassName { method() {} }`)
 - **Instances**: Class instantiation via constructor call (e.g., `var obj = ClassName()`)
+- **Initializers**: The `init()` method acts as a constructor that is automatically called during instantiation (e.g., `class Point { init(x, y) { this.x = x; this.y = y; } }`)
 - **Properties**: Dynamic property access (`instance.field`) and assignment (`instance.field = value`)
 - **Methods**: Methods defined on classes can be called on instances (e.g., `instance.method()`)
 - **This Keyword**: The `this` keyword refers to the current instance within a method, enabling methods to access instance fields and call other methods
@@ -544,4 +560,80 @@ var counter = Counter();
 counter.value = 42;
 var closure = counter.getClosure();
 print closure();  // 42 (this is correctly captured)
+```
+
+**Classes with Initializers (init method)**
+```lox
+// Basic initializer with parameters
+class Point {
+    init(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+var point = Point(10, 20);
+print point.x;  // 10
+print point.y;  // 20
+
+// Initializer with no parameters
+class Counter {
+    init() {
+        this.value = 0;
+    }
+}
+
+var counter = Counter();
+print counter.value;  // 0
+
+// Initializer calling methods
+class Person {
+    init(name) {
+        this.name = name;
+        this.greet();  // Can call methods from init
+    }
+    greet() {
+        print "Hello, " + this.name;
+    }
+}
+
+var person = Person("Alice");  // "Hello, Alice"
+
+// Initializer with computed values
+class Rectangle {
+    init(width, height) {
+        this.width = width;
+        this.height = height;
+        this.area = width * height;  // Compute derived value
+    }
+}
+
+var rect = Rectangle(5, 3);
+print rect.area;  // 15
+
+// Multiple instances with different init arguments
+class Point {
+    init(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+var p1 = Point(1, 2);
+var p2 = Point(10, 20);
+print p1.x;  // 1
+print p2.x;  // 10
+
+// Initializer can be called explicitly as a method
+class Foo {
+    init(value) {
+        this.value = value;
+        return;  // Explicit return (still returns instance)
+    }
+}
+
+var foo = Foo(42);
+var result = foo.init(100);  // Can call init() explicitly
+print result.value;  // 100
+print foo.value;     // 100
 ```

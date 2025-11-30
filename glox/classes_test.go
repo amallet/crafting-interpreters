@@ -1028,3 +1028,220 @@ outer();
 		runProgramAndExpectError(t, program, "this", "This in nested function outside class")
 	})
 }
+
+func TestInitMethod(t *testing.T) {
+	t.Run("Init with no parameters", func(t *testing.T) {
+		program := `
+class Foo {
+    init() {
+        this.value = 42;
+    }
+}
+var foo = Foo();
+print foo.value;
+`
+		expected := []string{"42"}
+		runProgramAndCheckOutput(t, program, expected, "Init with no parameters")
+	})
+
+	t.Run("Init with multiple parameters", func(t *testing.T) {
+		program := `
+class Person {
+    init(name, age, city) {
+        this.name = name;
+        this.age = age;
+        this.city = city;
+    }
+}
+var person = Person("Alice", 30, "NYC");
+print person.name;
+print person.age;
+print person.city;
+`
+		expected := []string{"Alice", "30", "NYC"}
+		runProgramAndCheckOutput(t, program, expected, "Init with multiple parameters")
+	})
+
+	t.Run("Init returns instance implicitly", func(t *testing.T) {
+		program := `
+class Foo {
+    init() {
+        this.value = 42;
+    }
+}
+var foo = Foo();
+print foo.value;
+`
+		expected := []string{"42"}
+		runProgramAndCheckOutput(t, program, expected, "Init returns instance implicitly")
+	})
+
+	t.Run("Init with explicit return (no value)", func(t *testing.T) {
+		program := `
+class Foo {
+    init() {
+        this.value = 42;
+        return;
+    }
+}
+var foo = Foo();
+print foo.value;
+`
+		expected := []string{"42"}
+		runProgramAndCheckOutput(t, program, expected, "Init with explicit return (no value)")
+	})
+
+	t.Run("Init calling methods", func(t *testing.T) {
+		program := `
+class Counter {
+    init(start) {
+        this.value = start;
+        this.increment();
+    }
+    increment() {
+        this.value = this.value + 1;
+    }
+}
+var counter = Counter(5);
+print counter.value;
+`
+		expected := []string{"6"}
+		runProgramAndCheckOutput(t, program, expected, "Init calling methods")
+	})
+
+	t.Run("Init with this keyword", func(t *testing.T) {
+		program := `
+class Person {
+    init(name) {
+        this.name = name;
+        this.greeting = "Hello, " + this.name;
+    }
+}
+var person = Person("Alice");
+print person.greeting;
+`
+		expected := []string{"Hello, Alice"}
+		runProgramAndCheckOutput(t, program, expected, "Init with this keyword")
+	})
+
+	t.Run("Multiple instances with different init arguments", func(t *testing.T) {
+		program := `
+class Point {
+    init(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+var p1 = Point(1, 2);
+var p2 = Point(10, 20);
+print p1.x;
+print p1.y;
+print p2.x;
+print p2.y;
+`
+		expected := []string{"1", "2", "10", "20"}
+		runProgramAndCheckOutput(t, program, expected, "Multiple instances with different init arguments")
+	})
+
+	t.Run("Init can be called explicitly as method", func(t *testing.T) {
+		program := `
+class Foo {
+    init(arg) {
+        this.field = arg;
+        return;
+    }
+}
+var foo = Foo("one");
+foo.field = "field";
+var foo2 = foo.init("two");
+print foo2;
+print foo.field;
+`
+		expected := []string{"Instance of class Foo", "two"}
+		runProgramAndCheckOutput(t, program, expected, "Init can be called explicitly as method")
+	})
+
+	t.Run("Init accessing global variables", func(t *testing.T) {
+		program := `
+var defaultName = "Default";
+class Person {
+    init(name) {
+        if (name == nil) {
+            this.name = defaultName;
+        } else {
+            this.name = name;
+        }
+    }
+}
+var person1 = Person("Alice");
+var person2 = Person(nil);
+print person1.name;
+print person2.name;
+`
+		expected := []string{"Alice", "Default"}
+		runProgramAndCheckOutput(t, program, expected, "Init accessing global variables")
+	})
+}
+
+func TestInitMethodErrors(t *testing.T) {
+	t.Run("Init returning a value", func(t *testing.T) {
+		program := `
+class Foo {
+    init() {
+        return "result";
+    }
+}
+`
+		runProgramAndExpectError(t, program, "can't return a value from an initializer", "Init returning a value")
+	})
+
+	t.Run("Init with missing arguments", func(t *testing.T) {
+		program := `
+class Foo {
+    init(a, b) {
+        this.sum = a + b;
+    }
+}
+var foo = Foo(1);
+`
+		runProgramAndExpectError(t, program, "Expected 2 arguments but got 1", "Init with missing arguments")
+	})
+
+	t.Run("Init with too many arguments", func(t *testing.T) {
+		program := `
+class Foo {
+    init(a) {
+        this.value = a;
+    }
+}
+var foo = Foo(1, 2);
+`
+		runProgramAndExpectError(t, program, "Expected 1 arguments but got 2", "Init with too many arguments")
+	})
+
+	t.Run("Init with zero arguments when required", func(t *testing.T) {
+		program := `
+class Foo {
+    init(a) {
+        this.value = a;
+    }
+}
+var foo = Foo();
+`
+		runProgramAndExpectError(t, program, "Expected 1 arguments but got 0", "Init with zero arguments when required")
+	})
+
+	t.Run("Init returning in conditional", func(t *testing.T) {
+		program := `
+class Foo {
+    init() {
+        if (true) {
+            return "value";
+        }
+    }
+}
+`
+		runProgramAndExpectError(t, program, "can't return a value from an initializer", "Init returning in conditional")
+	})
+
+}

@@ -5,13 +5,13 @@ import (
 )
 
 type LoxInstance struct {
-	klass *LoxClass 
+	class *LoxClass // class that this is an instance of 
 	fields map[string]any
 }
 
-func NewLoxInstance(klass *LoxClass) *LoxInstance {
+func NewLoxInstance(class *LoxClass) *LoxInstance {
 	return &LoxInstance{
-		klass: klass,
+		class: class,
 		fields: make(map[string]any),
 	}
 }
@@ -24,7 +24,7 @@ func (li *LoxInstance) get(token Token) (any, error) {
 
 	// No instance field matches, look for matching method on class, and 
 	// bind it to this instance
-	if method := li.klass.findMethod(token.lexeme); method != nil {
+	if method := li.class.findMethod(token.lexeme); method != nil {
 		boundMethod := method.bind(li)
 		return boundMethod, nil 
 	} 
@@ -37,5 +37,5 @@ func (li *LoxInstance) set(token Token, value any) {
 }
 
 func (li *LoxInstance) String() string {
-	return fmt.Sprintf("Instance of class %s", li.klass.name)
+	return fmt.Sprintf("Instance of class %s", li.class.name)
 }

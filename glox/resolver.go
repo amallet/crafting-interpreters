@@ -9,7 +9,15 @@ type functionType int
 const (
 	functionTypeNone functionType = iota
 	functionTypeFunction
+	functionTypeInitializer
 	functionTypeMethod 
+)
+
+type classType int 
+
+const (
+	classTypeNone classType = iota
+	classTypeClass
 )
 
 type variableStatus int
@@ -29,7 +37,8 @@ type Resolver struct {
 	runtime         LoxRuntime
 	interpreter     *Interpreter
 	scopes          []map[string]*varDecl
-	currentFunction functionType
+	currentFunctionType functionType
+	currentClassType classType
 }
 
 func NewResolver(runtime LoxRuntime, interpreter *Interpreter) *Resolver {
@@ -37,7 +46,8 @@ func NewResolver(runtime LoxRuntime, interpreter *Interpreter) *Resolver {
 		runtime:         runtime,
 		interpreter:     interpreter,
 		scopes:          make([]map[string]*varDecl, 0),
-		currentFunction: functionTypeNone,
+		currentFunctionType: functionTypeNone,
+		currentClassType: classTypeNone,
 	}
 }
 
@@ -68,6 +78,10 @@ func (r *Resolver) VisitBlockStmt(stmt *BlockStmt) error {
 }
 
 func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
+
+	enclosingClass := r.currentClassType
+	r.currentClassType = classTypeClass 
+
 	// Declare and define class itself 
 	if err := r.declare(stmt.className); err != nil {
 		return err
@@ -81,7 +95,11 @@ func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
 
 	// Declare and define class methods
 	for _, method := range stmt.methods {
-		if err := r.resolveFunction(method, functionTypeMethod); err != nil {
+		fnType := functionTypeMethod 
+		if method.functionName.lexeme == "init" {
+			fnType = functionTypeInitializer 
+		}
+		if err := r.resolveFunction(method, fnType); err != nil {
 			return err 
 		}
 	}
@@ -90,6 +108,7 @@ func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
 		return err 
 	}
 
+	r.currentClassType = enclosingClass
 	return nil
 }
 
@@ -122,12 +141,18 @@ func (r *Resolver) VisitPrintStmt(stmt *PrintStmt) error {
 func (r *Resolver) VisitReturnStmt(stmt *ReturnStmt) error {
 
 	// Can only have return statements inside a function
-	if r.currentFunction == functionTypeNone {
+	if r.currentFunctionType == functionTypeNone {
 		r.runtime.parseError(stmt.keyword, "Can't return from top-level code.")
 		return fmt.Errorf("resolver error ")
 	}
 
 	if stmt.returnValue != nil { // resolve return value, if there is one
+		// initializers can't return values 
+		if r.currentFunctionType == functionTypeInitializer {
+			r.interpreter.lox.error(stmt.keyword.line, "can't return a value from an initializer")
+			return fmt.Errorf("can't return a value from an initializer")
+		}
+		
 		if err := r.resolveExpr(stmt.returnValue); err != nil {
 			return err
 		}
@@ -215,6 +240,12 @@ func (r *Resolver) VisitPropSetExpr(p *PropSetExpr) (any, error) {
 }
 
 func (r *Resolver) VisitThisExpr(t *ThisExpr) (any, error) {
+	// Can only reference 'this' inside a class
+	if r.currentClassType == classTypeNone {
+		r.interpreter.lox.error(t.keyword.line, "can't use 'this' outside a class")
+		return nil, fmt.Errorf("can't use 'this' outside a class")
+	}
+
 	// "this" is treated like a local variable that gets injected 
 	// by the resolver when the class is defined  
 	r.resolveLocal(t, t.keyword)
@@ -272,8 +303,8 @@ func (r *Resolver) VisitFunctionStmt(stmt *FunctionStmt) error {
 }
 
 func (r *Resolver) resolveFunction(function *FunctionStmt, fnType functionType) error {
-	enclosingFunction := r.currentFunction
-	r.currentFunction = fnType
+	enclosingFunction := r.currentFunctionType
+	r.currentFunctionType = fnType
 
 	// Function parameters and function body are in a new scope
 	var err error
@@ -292,7 +323,7 @@ func (r *Resolver) resolveFunction(function *FunctionStmt, fnType functionType) 
 	}
 	err = r.endScope()
 
-	r.currentFunction = enclosingFunction
+	r.currentFunctionType = enclosingFunction
 	return err
 }
 
