@@ -98,7 +98,7 @@ func (p *Parser) declaration() (Stmt, error) {
 	return stmt, nil
 }
 
-// class → "class" IDENTIFIER "(" function* ")";
+// class → "class" IDENTIFIER "{" function* "}";
 func (p *Parser) classDeclaration() (Stmt, error) {
 	var err error
 	var className Token
@@ -108,6 +108,7 @@ func (p *Parser) classDeclaration() (Stmt, error) {
 		return nil, err
 	}
 
+	// Parse class methods
 	if _, err := p.consume(LEFT_BRACE, "Expect '{' after class name"); err != nil {
 		return nil, err
 	}
@@ -174,7 +175,7 @@ func (p *Parser) function(kind string) (*FunctionStmt, error) {
 		}
 	}
 
-	// init method must always have parameter list, even if it's empty 
+	// Special 'init' method that serves as constructor must always have parameter list, even if it's empty 
 	if fnName.lexeme == "init" && isGetter {
 		return nil, p.constructError(p.previous(),"init function must have parameter list")
 	}
