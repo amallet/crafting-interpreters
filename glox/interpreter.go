@@ -155,7 +155,30 @@ func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
 }
 
 func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
+	// Build object representing superclass, if any 
+	var superclass *LoxClass 
+	var err error 
+	if stmt.superclass != nil {
+		var super any 
+		if super, err = i.evaluate(stmt.superclass); err != nil {
+			return err 
+		}
+		var ok bool 
+		if superclass, ok = super.(*LoxClass); !ok {
+			return RuntimeError{stmt.superclass.variable, "Not a class."}
+		}
+	}
+
+	// Build object representing class definition and assign the class name,
+	// class methods etc, to the right environments 
 	i.currentEnv.defineVarValue(stmt.className.lexeme, nil)
+
+	// If class has a superclass, create a new environment containing a reference to 'super', 
+	// so that class methods can access it 
+	if stmt.superclass != nil {
+		i.currentEnv = NewEnvironment(i.currentEnv)
+		i.currentEnv.defineVarValue("super", superclass)
+	}
 
 	methods := make(map[string]*LoxFunction)
 	for _, method := range stmt.methods {
@@ -163,10 +186,19 @@ func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
 		methods[method.functionName.lexeme] = function
 	}
 
-	class := NewLoxClass(stmt.className.lexeme, methods)
+	// 'super' should no longer be in scope after method definitions, so go back to 
+	// previous environment 
+	if stmt.superclass != nil {
+		i.currentEnv = i.currentEnv.enclosing
+	}
+
+	// All components of class object are now filled-in, so create it and 
+	// store it in the appropriate environment
+	class := NewLoxClass(stmt.className.lexeme, superclass, methods)
 	if err := i.currentEnv.assignVarValue(stmt.className, class); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -396,6 +428,29 @@ func (i *Interpreter) VisitPropSetExpr(p *PropSetExpr) (any, error) {
 
 func (i *Interpreter) VisitThisExpr(t *ThisExpr) (any, error) {
 	return i.lookupVariable(t.keyword, t)
+}
+
+func (i *Interpreter) VisitSuperExpr(s *SuperExpr) (any, error) {
+	var superclass *LoxClass
+	var currentInstance *LoxInstance 
+	var ok bool 
+	distance := i.locals[s]
+	temp := i.currentEnv.getAt(distance, "super")
+	if superclass, ok = temp.(*LoxClass); !ok {
+		return nil, RuntimeError{s.keyword, "Is not a class"}
+	}
+
+	temp = i.currentEnv.getAt(distance - 1, "this")
+	if currentInstance, ok = temp.(*LoxInstance); !ok {
+		return nil, RuntimeError{s.keyword,"'this' is bound to an object instance"}
+	}
+
+	method := superclass.findMethod(s.method.lexeme)
+	if method == nil {
+		return nil, RuntimeError{s.method, "Undefined property " + s.method.lexeme + "."}
+	}
+	
+	return method.bindThis(currentInstance), nil 
 }
 
 // Evaluate expressions in parentheses

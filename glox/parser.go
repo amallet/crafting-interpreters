@@ -9,7 +9,7 @@ import (
 //
 // program        → declaration* EOF;
 // declaration    → classDecl | funDecl | varDecl | statement ;
-// classDecl      → "class" IDENTIFIER "(" function* ")" ;
+// classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER)? "(" function* ")" ;
 // funDecl        → "fun" function;
 // function       → IDENTIFIER ("(" parameters? ")")? block ;
 // parameters     → IDENTIFIER ("," IDENTIFIER)* ;
@@ -35,7 +35,7 @@ import (
 // unary          → ( "!" | "-" ) unary | | call
 // call           → primary ( "(" arguments? ")" | "." IDENTIFIER )*;
 // arguments      → expression ( "," expression )* ;
-// primary        → "true" | "false" | "nil" | "this" | NUMBER | STRING | "(" expression ")" | IDENTIFIER;
+// primary        → "true" | "false" | "nil" | "this" | NUMBER | STRING | "(" expression ")" | IDENTIFIER | "super" "." IDENTIFIER
 //
 // The grammar follows operator precedence with the following precedence levels
 // (from lowest to highest):
@@ -98,7 +98,7 @@ func (p *Parser) declaration() (Stmt, error) {
 	return stmt, nil
 }
 
-// class → "class" IDENTIFIER "{" function* "}";
+// class → "class" IDENTIFIER ("<" IDENTIFIER )? "{" function* "}";
 func (p *Parser) classDeclaration() (Stmt, error) {
 	var err error
 	var className Token
@@ -107,6 +107,16 @@ func (p *Parser) classDeclaration() (Stmt, error) {
 	if className, err = p.consume(IDENTIFIER, "Expect class name"); err != nil {
 		return nil, err
 	}
+
+	// Parse superclass, if there is one 
+	var superclass *VariableExpr 
+	if p.matches(LESS) {
+		if _, err = p.consume(IDENTIFIER, "Expect superclass name"); err != nil {
+			return nil, err 
+		}
+		superclass = &VariableExpr{p.previous() }
+	}
+
 
 	// Parse class methods
 	if _, err := p.consume(LEFT_BRACE, "Expect '{' after class name"); err != nil {
@@ -125,7 +135,7 @@ func (p *Parser) classDeclaration() (Stmt, error) {
 		return nil, err
 	}
 
-	return &ClassStmt{className: className, methods: methods}, nil
+	return &ClassStmt{className: className, superclass: superclass, methods: methods}, nil
 }
 
 // function       → IDENTIFIER ("(" parameters? ")")? block ;
@@ -696,7 +706,7 @@ func (p *Parser) callArguments(callee Expr) (Expr, error) {
 	return &CallExpr{callee, paren, arguments}, nil
 }
 
-// primary → "true" | "false" | "nil" | "this" | NUMBER | STRING |"(" expression ")" | IDENTIFIER;
+// primary → "true" | "false" | "nil" | "this" | NUMBER | STRING |"(" expression ")" | IDENTIFIER | "super" "." IDENTIFIER
 func (p *Parser) primary() (Expr, error) {
 	if p.matches(TRUE) {
 		return &LiteralExpr{true}, nil
@@ -720,6 +730,19 @@ func (p *Parser) primary() (Expr, error) {
 
 	if p.matches(THIS) {
 		return &ThisExpr{p.previous()}, nil
+	}
+
+	if p.matches(SUPER) {
+		var keyword, method Token
+		var err error 
+		keyword = p.previous()
+		if _, err = p.consume(DOT, "Expect '.' after 'super'."); err != nil {
+			return nil, err 
+		}
+		if method, err = p.consume(IDENTIFIER,"Expect superclass method name"); err != nil {
+			return nil, err 
+		}
+		return &SuperExpr{keyword: keyword, method: method}, nil 
 	}
 
 	if p.matches(LEFT_PAREN) {

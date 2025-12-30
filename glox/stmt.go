@@ -26,6 +26,7 @@ func (e *ExpressionStmt) Accept(visitor StmtVisitor) error {
 
 type ClassStmt struct {
 	className Token
+	superclass *VariableExpr
 	methods []*FunctionStmt
 }
 

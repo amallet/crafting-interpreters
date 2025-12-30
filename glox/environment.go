@@ -6,7 +6,7 @@ import (
 
 // The Environment type maps variables to their value within a given
 // scope (ie lexical block). An environment may have a pointer to a parent environment, 
-// represents the enclosing scope
+// which represents the enclosing scope
 type Environment struct {
 	enclosing *Environment
 	values    map[string]any

@@ -18,6 +18,7 @@ type ExprVisitor interface {
 	VisitUnaryExpr(expr *UnaryExpr) (any, error)
 	VisitVariableExpr(expr *VariableExpr) (any, error)
 	VisitThisExpr(expr *ThisExpr) (any, error)
+	VisitSuperExpr(expr *SuperExpr) (any, error)
 }
 
 // AssignExpr represents an assignment expression
@@ -128,4 +129,14 @@ type ThisExpr struct {
 
 func (t *ThisExpr) Accept(visitor ExprVisitor) (any, error) {
 	return visitor.VisitThisExpr(t)
+}
+
+// SuperExpr represents 'super' keyword
+type SuperExpr struct {
+	keyword Token
+	method Token
+}
+
+func (s *SuperExpr) Accept(visitor ExprVisitor) (any, error) {
+	return visitor.VisitSuperExpr(s)
 }

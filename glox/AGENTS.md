@@ -172,6 +172,7 @@ Built-in functions (builtin_fns.go):
 - Calling a class (e.g., `ClassName()`) creates a new `LoxInstance`
 - Classes can be stored in variables and passed around as values
 - Classes have a name that is used for string representation
+- **Single inheritance**: a class may optionally declare a superclass using `class Sub < Super { ... }`
 
 **LoxInstance** represents an instance of a class:
 - Each instance has a reference to its class (`klass`)
@@ -183,6 +184,11 @@ Built-in functions (builtin_fns.go):
 - Multiple instances of the same class have independent field storage
 - Methods are defined in class declarations: `class ClassName { methodName() { ... } }`
 - Methods are accessed via `instance.method` and are automatically bound to the instance
+
+**`super` keyword (single inheritance)**:
+- `super.method` refers to the *immediate* superclass of the current class
+- `super.method()` evaluates by locating the method on the superclass and binding it to the current instance (`this`)
+- `super` is only valid inside **subclass** method bodies
 
 **Getter Functions**:
 - Getter functions are methods with no parameter list that execute immediately when accessed
@@ -228,6 +234,9 @@ The `LoxRuntime` interface abstracts error reporting to allow:
   - Variable redeclaration in same scope
   - Unused local variables (declared but never read or assigned to)
   - Using `this` outside of a class (if validation is implemented)
+  - Using `super` outside a class
+  - Using `super` in a class with no superclass
+  - A class can't inherit from itself (`class A < A`)
   - Returning a value from an initializer (`init()` method cannot return values)
   - Duplicate method names in the same class (including getters and cross-type duplicates)
   - Getter functions defined outside of a class
@@ -242,6 +251,8 @@ The `LoxRuntime` interface abstracts error reporting to allow:
 - Calling undefined methods on instances
 - Method arity mismatches (wrong number of arguments)
 - Initializer arity mismatches (wrong number of arguments when instantiating a class with `init()`)
+- Invalid inheritance target: superclass must be a class (`Not a class.`)
+- `super` method lookup failures (`Undefined property <name>.`)
 
 ## Project Structure
 
@@ -283,6 +294,7 @@ Tests are organized by component:
 - `interpreter_test.go` - Expression evaluation, statement execution
 - `environment_test.go` - Variable scoping behavior
 - `classes_test.go` - Class definition, instantiation, and property access
+- `inheritance_test.go` - Single inheritance and `super` semantics (including deep hierarchies and misuse errors)
 - `integration_test.go` - End-to-end program execution
 
 ### Test Utilities (test_utils.go)
@@ -336,12 +348,14 @@ Tests are organized by component:
 - **Function Calls**: Call expressions with argument passing and return value handling
 - **Closures**: Functions capture variables from their enclosing lexical scope
 - **Classes**: Class declarations with methods (syntax: `class ClassName { method() {} }`)
+- **Single inheritance**: Class declarations may specify a superclass (e.g., `class Sub < Super { ... }`)
 - **Instances**: Class instantiation via constructor call (e.g., `var obj = ClassName()`)
 - **Initializers**: The `init()` method acts as a constructor that is automatically called during instantiation (e.g., `class Point { init(x, y) { this.x = x; this.y = y; } }`)
 - **Properties**: Dynamic property access (`instance.field`) and assignment (`instance.field = value`)
 - **Methods**: Methods defined on classes can be called on instances (e.g., `instance.method()`)
 - **Getter Functions**: Getter functions are methods with no parameter list that execute immediately when accessed as properties (e.g., `class Foo { value { return 42; } }` accessed as `instance.value`)
 - **This Keyword**: The `this` keyword refers to the current instance within a method, enabling methods to access instance fields and call other methods
+- **Super Keyword**: The `super` keyword refers to the superclass inside subclass methods (syntax: `super.method` / `super.method()`)
 - **Print Statement**: Built-in `print` statement for output
 - **Built-in Functions**: `clock()` function for getting current time
 - **Comments**: Single-line comments with `//`
@@ -353,7 +367,7 @@ Parser implements this grammar (listed by increasing precedence):
 ```
 program        → declaration* EOF
 declaration    → classDecl | funDecl | varDecl | statement
-classDecl      → "class" IDENTIFIER "{" method* "}"
+classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" method* "}"
 method         → IDENTIFIER ("(" parameters? ")")? block
 funDecl        → "fun" function
 function       → IDENTIFIER "(" parameters? ")" block
@@ -374,7 +388,7 @@ factor         → unary ( ( "/" | "*" ) unary )*
 unary          → ( "!" | "-" ) unary | call
 call           → primary ( "(" arguments? ")" )*
 arguments      → expression ( "," expression )*
-primary        → "true" | "false" | "nil" | "this" | NUMBER | STRING | "(" expression ")" | IDENTIFIER
+primary        → "true" | "false" | "nil" | "this" | NUMBER | STRING | "(" expression ")" | IDENTIFIER | "super" "." IDENTIFIER
 ```
 
 Precedence levels (lowest to highest):

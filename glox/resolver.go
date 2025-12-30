@@ -18,6 +18,7 @@ type classType int
 const (
 	classTypeNone classType = iota
 	classTypeClass
+	classTypeSubclass
 )
 
 type variableStatus int
@@ -88,8 +89,26 @@ func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
 	}
 	r.define(stmt.className)
 
-	// Start a new scope into which 'this' keyword can be injected, so that 
-	// methods can be bound to a class instance, and then inject 'this'
+	// Handle superclass, if any
+	if stmt.superclass != nil {
+		r.currentClassType = classTypeSubclass // keep track of the fact that current class is a subclass
+
+		if stmt.className.lexeme == stmt.superclass.variable.lexeme {
+			r.runtime.parseError(stmt.superclass.variable, "A class can't inherit from itself")
+			return fmt.Errorf("class %s can't inherit from itself", stmt.className.lexeme)
+		}
+
+		if err := r.resolveExpr(stmt.superclass); err != nil {
+			return err 
+		}
+
+		// Start a new scope that will hold refence to 'super' class  
+		r.beginScope()
+		r.injectSuper()
+	}
+
+	// Start a new scope for class methods, and inject 'this', so class methods 
+	// have access to it 
 	r.beginScope()
 	r.injectThis()
 
@@ -114,8 +133,16 @@ func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
 		}
 	}
 
+	// End method scope 
 	if err := r.endScope(); err != nil {
 		return err 
+	}
+
+	// End 'super' scope, if necessary
+	if stmt.superclass != nil {
+		if err := r.endScope(); err != nil {
+			return err 
+		}
 	}
 
 	r.currentClassType = enclosingClass
@@ -259,6 +286,20 @@ func (r *Resolver) VisitThisExpr(t *ThisExpr) (any, error) {
 	// "this" is treated like a local variable that gets injected 
 	// by the resolver when the class is defined  
 	r.resolveLocal(t, t.keyword)
+	return nil, nil 
+}
+
+func (r *Resolver) VisitSuperExpr(s *SuperExpr) (any, error) {
+	if r.currentClassType == classTypeNone {
+		r.interpreter.lox.parseError(s.keyword,"Can't use 'super' outside a class")
+		return nil, fmt.Errorf("Can't use 'super' outside a class")
+	} else if r.currentClassType == classTypeClass {
+		r.interpreter.lox.parseError(s.keyword,"Can't use 'super' in a class with no superclass")
+		return nil, fmt.Errorf("Can't use 'super' in a class with no superclass")
+
+	}
+	
+	r.resolveLocal(s, s.keyword)
 	return nil, nil 
 }
 
@@ -410,4 +451,11 @@ func (r *Resolver) injectThis() {
 	currentScope := r.scopes[len(r.scopes) - 1]
 	dummyThisToken := Token{THIS, "this", nil, 0}
 	currentScope["this"] = &varDecl{dummyThisToken, isUsed}
+}
+
+// injectSuper defines 'super' as a local variable in the current scope
+func (r *Resolver) injectSuper() {
+	currentScope := r.scopes[len(r.scopes) - 1]
+	dummySuperToken := Token{SUPER, "super", nil, 0}
+	currentScope["super"] = &varDecl{dummySuperToken, isUsed}
 }
