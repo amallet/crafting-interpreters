@@ -8,9 +8,11 @@ import (
 // The Interpreter object interprets/evaluates the ASTs produced by the Parser
 type Interpreter struct {
 	lox     LoxRuntime
-	globalEnv *Environment
-	currentEnv     *Environment
-	locals  map[Expr]int
+	globalEnv *Environment // environment for global variables
+	currentEnv     *Environment // currently-active environment 
+	// locals holds the distance from the currently-active environment to 
+	// the environment in which to look up a given Expr
+	locals  map[Expr]int 
 }
 
 func NewInterpreter(lox LoxRuntime) *Interpreter {
@@ -56,7 +58,6 @@ func (i *Interpreter) evaluate(e Expr) (any, error) {
 }
 
 func (i *Interpreter) resolve(expr Expr, depth int) {
-	//fmt.Printf("Storing %v @ %v at depth %d\n", expr, &expr, depth)
 	i.locals[expr] = depth
 }
 
@@ -136,9 +137,10 @@ func (i *Interpreter) VisitIfStmt(stmt *IfStmt) error {
 }
 
 func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) error {
+	var condition any
+	var err error
+
 	for {
-		var condition any
-		var err error
 		if condition, err = i.evaluate(stmt.condition); err != nil {
 			return err
 		}
@@ -169,12 +171,11 @@ func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
 		}
 	}
 
-	// Build object representing class definition and assign the class name,
-	// class methods etc, to the right environments 
+	// Class name is defined in the current scope/environment
 	i.currentEnv.defineVarValue(stmt.className.lexeme, nil)
 
-	// If class has a superclass, create a new environment containing a reference to 'super', 
-	// so that class methods can access it 
+	// If class has a superclass, create a child environment containing a reference to 'super', 
+	// so that class methods can access it, and define methods in that environment
 	if stmt.superclass != nil {
 		i.currentEnv = NewEnvironment(i.currentEnv)
 		i.currentEnv.defineVarValue("super", superclass)
@@ -192,8 +193,8 @@ func (i *Interpreter) VisitClassStmt(stmt *ClassStmt) error {
 		i.currentEnv = i.currentEnv.enclosing
 	}
 
-	// All components of class object are now filled-in, so create it and 
-	// store it in the appropriate environment
+	// All components of runtime representation of the class are now filled-in, so create it and 
+	// update the value assigned to the class name to point to it 
 	class := NewLoxClass(stmt.className.lexeme, superclass, methods)
 	if err := i.currentEnv.assignVarValue(stmt.className, class); err != nil {
 		return err
@@ -434,14 +435,17 @@ func (i *Interpreter) VisitSuperExpr(s *SuperExpr) (any, error) {
 	var superclass *LoxClass
 	var currentInstance *LoxInstance 
 	var ok bool 
+
+	// Retrieve superclass 
 	distance := i.locals[s]
-	temp := i.currentEnv.getAt(distance, "super")
-	if superclass, ok = temp.(*LoxClass); !ok {
+	maybeClass := i.currentEnv.getAt(distance, "super")
+	if superclass, ok = maybeClass.(*LoxClass); !ok {
 		return nil, RuntimeError{s.keyword, "Is not a class"}
 	}
 
-	temp = i.currentEnv.getAt(distance - 1, "this")
-	if currentInstance, ok = temp.(*LoxInstance); !ok {
+	// Retrieve current class instance 
+	maybeInstance := i.currentEnv.getAt(distance - 1, "this")
+	if currentInstance, ok = maybeInstance.(*LoxInstance); !ok {
 		return nil, RuntimeError{s.keyword,"'this' is bound to an object instance"}
 	}
 
@@ -449,7 +453,7 @@ func (i *Interpreter) VisitSuperExpr(s *SuperExpr) (any, error) {
 	if method == nil {
 		return nil, RuntimeError{s.method, "Undefined property " + s.method.lexeme + "."}
 	}
-	
+
 	return method.bindThis(currentInstance), nil 
 }
 

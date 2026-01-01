@@ -102,7 +102,8 @@ func (r *Resolver) VisitClassStmt(stmt *ClassStmt) error {
 			return err 
 		}
 
-		// Start a new scope that will hold refence to 'super' class  
+		// Start a new scope that will hold refence to 'super' class, and add the 'super'
+		// class to that scope   
 		r.beginScope()
 		r.injectSuper()
 	}
@@ -298,7 +299,7 @@ func (r *Resolver) VisitSuperExpr(s *SuperExpr) (any, error) {
 		return nil, fmt.Errorf("Can't use 'super' in a class with no superclass")
 
 	}
-	
+
 	r.resolveLocal(s, s.keyword)
 	return nil, nil 
 }
@@ -387,6 +388,9 @@ func (r *Resolver) resolveFunction(function *FunctionStmt, fnType functionType) 
 }
 
 func (r *Resolver) resolveLocal(expr Expr, token Token) {
+	// Figure out distance from currently-active scope to scope where 
+	// the supplied Expr is defined, and communicate this distance to the interpreter,
+	// for use at execution time
 	for i := len(r.scopes) - 1; i >= 0; i-- {
 		if variable, ok := r.scopes[i][token.lexeme]; ok {
 			variable.status = isUsed // to keep track of used/unused variables
